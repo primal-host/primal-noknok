@@ -1,0 +1,13 @@
+# Binary
+/noknok
+
+# Environment
+.env
+
+# Secrets
+secrets/
+
+# IDE
+.idea/
+.vscode/
+*.swp

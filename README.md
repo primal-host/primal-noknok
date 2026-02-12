@@ -1,0 +1,1 @@
+Project to build a variation of Authentik, that uses blueSky as the login and authentication process, and then acts as a catalog to locally hosted sites that the user is authorized for.  If an unauthorized user visits any of those sites, they will be silently redirected to this login system.

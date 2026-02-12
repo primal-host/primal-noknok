@@ -1,0 +1,43 @@
+services:
+  noknok:
+    build: .
+    image: primal-noknok
+    container_name: primal-noknok
+    restart: unless-stopped
+    env_file: .env
+    secrets:
+      - db_password
+      - session_secret
+    networks:
+      - infra
+    labels:
+      - "traefik.enable=true"
+      # Production (HTTPS)
+      - "traefik.http.routers.noknok.rule=Host(`noknok.primal.host`)"
+      - "traefik.http.routers.noknok.entrypoints=https"
+      - "traefik.http.routers.noknok.tls.certresolver=letsencrypt"
+      # Production HTTP->HTTPS redirect
+      - "traefik.http.routers.noknok-redirect.rule=Host(`noknok.primal.host`)"
+      - "traefik.http.routers.noknok-redirect.entrypoints=http"
+      - "traefik.http.routers.noknok-redirect.middlewares=https-redirect"
+      # Local (HTTP)
+      - "traefik.http.routers.noknok-local.rule=Host(`noknok.localhost`)"
+      - "traefik.http.routers.noknok-local.entrypoints=http"
+      # Service
+      - "traefik.http.services.noknok.loadbalancer.server.port=4321"
+      # ForwardAuth middleware (referenced by other services as "noknok-auth")
+      - "traefik.http.middlewares.noknok-auth.forwardauth.address=http://primal-noknok:4321/auth"
+      - "traefik.http.middlewares.noknok-auth.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.noknok-auth.forwardauth.authResponseHeaders=X-User-DID,X-User-Handle"
+    dns:
+      - 192.168.147.53
+
+secrets:
+  db_password:
+    file: ${HOME}/apps/infra/postgres/secrets/dba_noknok_password.txt
+  session_secret:
+    file: ./secrets/session_secret.txt
+
+networks:
+  infra:
+    external: true
