@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/primal-host/noknok/internal/atproto"
 	"github.com/primal-host/noknok/internal/config"
 	"github.com/primal-host/noknok/internal/database"
 	"github.com/primal-host/noknok/internal/server"
@@ -44,6 +45,15 @@ func main() {
 	cancel()
 	slog.Info("owner seeded", "did", cfg.OwnerDID)
 
+	// OAuth client.
+	store := atproto.NewPgStore(db.Pool)
+	oauthClient, err := atproto.NewOAuthClient(cfg.PublicURL, cfg.OAuthPrivateKey, store)
+	if err != nil {
+		slog.Error("OAuth client init failed", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("OAuth client initialized")
+
 	// Session manager.
 	ttl, err := time.ParseDuration(cfg.SessionTTL)
 	if err != nil {
@@ -54,7 +64,7 @@ func main() {
 	sess := session.NewManager(db.Pool, ttl, cfg.CookieDomain, secure)
 	sess.StartCleanup()
 
-	srv := server.New(db, sess, cfg)
+	srv := server.New(db, sess, cfg, oauthClient)
 
 	go func() {
 		if err := srv.Start(); err != nil {
