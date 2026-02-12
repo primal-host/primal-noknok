@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -67,7 +68,8 @@ func Load() (*Config, error) {
 // DSN returns a PostgreSQL connection string.
 func (c *Config) DSN() string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		c.DBUser, c.DBPassword, c.DBHost, c.DBPort, c.DBName, c.DBSSLMode)
+		url.QueryEscape(c.DBUser), url.QueryEscape(c.DBPassword),
+		c.DBHost, c.DBPort, c.DBName, c.DBSSLMode)
 }
 
 func envOrDefault(key, fallback string) string {
