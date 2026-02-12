@@ -13,13 +13,24 @@ services:
     labels:
       - "traefik.enable=true"
       # Production (HTTPS)
-      - "traefik.http.routers.noknok.rule=Host(`primal.host`) || Host(`noknok.primal.host`)"
+      - "traefik.http.routers.noknok.rule=Host(`primal.host`)"
       - "traefik.http.routers.noknok.entrypoints=https"
       - "traefik.http.routers.noknok.tls.certresolver=letsencrypt"
       # Production HTTP->HTTPS redirect
-      - "traefik.http.routers.noknok-redirect.rule=Host(`primal.host`) || Host(`noknok.primal.host`)"
+      - "traefik.http.routers.noknok-redirect.rule=Host(`primal.host`)"
       - "traefik.http.routers.noknok-redirect.entrypoints=http"
       - "traefik.http.routers.noknok-redirect.middlewares=https-redirect"
+      # Redirect noknok.primal.host → primal.host
+      - "traefik.http.routers.noknok-old.rule=Host(`noknok.primal.host`)"
+      - "traefik.http.routers.noknok-old.entrypoints=https"
+      - "traefik.http.routers.noknok-old.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.noknok-old.middlewares=noknok-to-root"
+      - "traefik.http.routers.noknok-old-http.rule=Host(`noknok.primal.host`)"
+      - "traefik.http.routers.noknok-old-http.entrypoints=http"
+      - "traefik.http.routers.noknok-old-http.middlewares=noknok-to-root"
+      - "traefik.http.middlewares.noknok-to-root.redirectregex.regex=^https?://noknok\\.primal\\.host(.*)"
+      - "traefik.http.middlewares.noknok-to-root.redirectregex.replacement=https://primal.host$${1}"
+      - "traefik.http.middlewares.noknok-to-root.redirectregex.permanent=true"
       # Local (HTTP)
       - "traefik.http.routers.noknok-local.rule=Host(`noknok.localhost`)"
       - "traefik.http.routers.noknok-local.entrypoints=http"
