@@ -6,6 +6,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/primal-host/noknok/internal/atproto"
 	"github.com/primal-host/noknok/internal/config"
 	"github.com/primal-host/noknok/internal/database"
 	"github.com/primal-host/noknok/internal/session"
@@ -13,21 +14,23 @@ import (
 
 // Server wraps the Echo instance and dependencies.
 type Server struct {
-	echo    *echo.Echo
-	db      *database.DB
-	sess    *session.Manager
-	cfg     *config.Config
-	addr    string
+	echo  *echo.Echo
+	db    *database.DB
+	sess  *session.Manager
+	cfg   *config.Config
+	oauth *atproto.OAuthClient
+	addr  string
 }
 
 // New creates a configured Echo server.
-func New(db *database.DB, sess *session.Manager, cfg *config.Config) *Server {
+func New(db *database.DB, sess *session.Manager, cfg *config.Config, oauth *atproto.OAuthClient) *Server {
 	s := &Server{
-		echo: echo.New(),
-		db:   db,
-		sess: sess,
-		cfg:  cfg,
-		addr: cfg.ListenAddr,
+		echo:  echo.New(),
+		db:    db,
+		sess:  sess,
+		cfg:   cfg,
+		oauth: oauth,
+		addr:  cfg.ListenAddr,
 	}
 
 	s.echo.HideBanner = true

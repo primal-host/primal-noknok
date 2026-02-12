@@ -7,56 +7,99 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
-	"github.com/primal-host/noknok/internal/atproto"
 	"github.com/primal-host/noknok/internal/config"
 )
 
-// handleLoginPage renders the login form.
+const redirectCookieName = "noknok_redirect"
+
+// handleLoginPage renders the login form (handle only, no password).
 func (s *Server) handleLoginPage(c echo.Context) error {
 	redirect := c.QueryParam("redirect")
 	errMsg := c.QueryParam("error")
 	return c.HTML(http.StatusOK, loginHTML(redirect, errMsg))
 }
 
-// handleLogin processes the login form submission.
+// handleLogin processes the login form — starts the OAuth flow.
 func (s *Server) handleLogin(c echo.Context) error {
 	handle := strings.TrimSpace(c.FormValue("handle"))
-	password := c.FormValue("password")
 	redirect := c.FormValue("redirect")
 
-	if handle == "" || password == "" {
-		return c.HTML(http.StatusOK, loginHTML(redirect, "Handle and app password are required."))
+	if handle == "" {
+		return c.HTML(http.StatusOK, loginHTML(redirect, "Handle is required."))
 	}
 
-	// Authenticate via AT Protocol.
-	did, resolvedHandle, err := atproto.Authenticate(handle, password)
+	// Store redirect URL in a cookie so we can use it after the OAuth callback.
+	if redirect != "" && isAllowedRedirect(redirect, s.cfg) {
+		secure := strings.HasPrefix(s.cfg.PublicURL, "https://")
+		c.SetCookie(&http.Cookie{
+			Name:     redirectCookieName,
+			Value:    redirect,
+			Path:     "/",
+			MaxAge:   600, // 10 minutes
+			HttpOnly: true,
+			Secure:   secure,
+			SameSite: http.SameSiteLaxMode,
+		})
+	}
+
+	authURL, err := s.oauth.StartLogin(c.Request().Context(), handle)
 	if err != nil {
-		slog.Warn("login failed", "handle", handle, "error", err)
-		return c.HTML(http.StatusOK, loginHTML(redirect, "Authentication failed. Check your handle and app password."))
+		slog.Warn("OAuth start failed", "handle", handle, "error", err)
+		return c.HTML(http.StatusOK, loginHTML(redirect, "Could not start login. Check your handle and try again."))
+	}
+
+	return c.Redirect(http.StatusFound, authURL)
+}
+
+// handleOAuthCallback processes the auth server redirect.
+func (s *Server) handleOAuthCallback(c echo.Context) error {
+	did, resolvedHandle, err := s.oauth.HandleCallback(c.Request().Context(), c.QueryParams())
+	if err != nil {
+		slog.Warn("OAuth callback failed", "error", err)
+		return c.Redirect(http.StatusFound, s.cfg.PublicURL+"/login?error="+url.QueryEscape("Authentication failed. Please try again."))
 	}
 
 	// Phase 1: Only the owner DID is allowed.
 	if did != s.cfg.OwnerDID {
 		slog.Warn("unauthorized DID attempted login", "did", did, "handle", resolvedHandle)
-		return c.HTML(http.StatusOK, loginHTML(redirect, "Access denied. You are not authorized."))
+		return c.Redirect(http.StatusFound, s.cfg.PublicURL+"/login?error="+url.QueryEscape("Access denied. You are not authorized."))
 	}
 
-	// Create session.
+	// Create noknok session.
 	cookie, err := s.sess.Create(c.Request().Context(), did, resolvedHandle)
 	if err != nil {
 		slog.Error("failed to create session", "error", err)
-		return c.HTML(http.StatusOK, loginHTML(redirect, "Internal error. Please try again."))
+		return c.Redirect(http.StatusFound, s.cfg.PublicURL+"/login?error="+url.QueryEscape("Internal error. Please try again."))
 	}
 	c.SetCookie(cookie)
 
 	slog.Info("login successful", "did", did, "handle", resolvedHandle)
 
-	// Redirect to the original destination or portal.
+	// Redirect to the stored destination or portal.
 	dest := s.cfg.PublicURL + "/"
-	if redirect != "" && isAllowedRedirect(redirect, s.cfg) {
-		dest = redirect
+	if rc, err := c.Cookie(redirectCookieName); err == nil && rc.Value != "" {
+		if isAllowedRedirect(rc.Value, s.cfg) {
+			dest = rc.Value
+		}
+		// Clear the redirect cookie.
+		c.SetCookie(&http.Cookie{
+			Name:   redirectCookieName,
+			Value:  "",
+			Path:   "/",
+			MaxAge: -1,
+		})
 	}
 	return c.Redirect(http.StatusFound, dest)
+}
+
+// handleClientMetadata serves the OAuth client metadata document.
+func (s *Server) handleClientMetadata(c echo.Context) error {
+	return c.JSON(http.StatusOK, s.oauth.ClientMetadata())
+}
+
+// handleJWKS serves the public JSON Web Key Set.
+func (s *Server) handleJWKS(c echo.Context) error {
+	return c.JSON(http.StatusOK, s.oauth.PublicJWKS())
 }
 
 // isAllowedRedirect validates the redirect URL to prevent open redirect attacks.
@@ -65,14 +108,11 @@ func isAllowedRedirect(rawURL string, cfg *config.Config) bool {
 	if err != nil {
 		return false
 	}
-	// Must be absolute HTTP(S) URL.
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return false
 	}
-	// Host must be under the cookie domain.
 	domain := cfg.CookieDomain
 	if strings.HasPrefix(domain, ".") {
-		// e.g. ".primal.host" — allow "primal.host" and "*.primal.host"
 		base := domain[1:]
 		return u.Host == base || strings.HasSuffix(u.Host, domain)
 	}
@@ -141,7 +181,7 @@ func loginHTML(redirect, errMsg string) string {
     color: #cbd5e1;
     margin-bottom: 0.375rem;
   }
-  input[type="text"], input[type="password"] {
+  input[type="text"] {
     width: 100%;
     padding: 0.625rem 0.75rem;
     background: #0f172a;
@@ -153,10 +193,10 @@ func loginHTML(redirect, errMsg string) string {
     outline: none;
     transition: border-color 0.15s;
   }
-  input[type="text"]:focus, input[type="password"]:focus {
+  input[type="text"]:focus {
     border-color: #3b82f6;
   }
-  input[type="text"]::placeholder, input[type="password"]::placeholder {
+  input[type="text"]::placeholder {
     color: #475569;
   }
   button {
@@ -183,17 +223,15 @@ func loginHTML(redirect, errMsg string) string {
 <body>
 <div class="card">
   <h1>noknok</h1>
-  <p class="subtitle">Sign in with your AT Protocol identity</p>
+  <p class="subtitle">Sign in with your Bluesky account</p>
   ` + errorBlock + `
   <form method="POST" action="/login">
     ` + redirectInput + `
     <label for="handle">Handle</label>
     <input type="text" id="handle" name="handle" placeholder="you.bsky.social" autocomplete="username" autofocus required>
-    <label for="password">App Password</label>
-    <input type="password" id="password" name="password" placeholder="xxxx-xxxx-xxxx-xxxx" autocomplete="current-password" required>
-    <button type="submit">Sign In</button>
+    <button type="submit">Sign in with Bluesky</button>
   </form>
-  <p class="footer">Authentication via AT Protocol (Bluesky)</p>
+  <p class="footer">You will be redirected to authorize at your provider</p>
 </div>
 </body>
 </html>`
