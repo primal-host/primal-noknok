@@ -1,4 +1,4 @@
-FROM golang:1.24-alpine AS build
+FROM golang:1.25-alpine AS build
 WORKDIR /src
 ENV GOPROXY=http://host.docker.internal:3000|direct
 COPY go.mod go.sum ./
