@@ -6,10 +6,10 @@ AT Protocol authentication gateway for Traefik forwardAuth.
 
 - `cmd/noknok/` — Entry point
 - `internal/config/` — Environment + file-based config
-- `internal/database/` — pgx pool, schema bootstrap
+- `internal/database/` — pgx pool, schema bootstrap, CRUD queries
 - `internal/atproto/` — OAuth client wrapper + Postgres auth store (indigo SDK)
 - `internal/session/` — Server-side session management + cookies
-- `internal/server/` — Echo HTTP server, routes, handlers
+- `internal/server/` — Echo HTTP server, routes, handlers, admin panel
 
 ## Build & Run
 
@@ -36,6 +36,10 @@ Postgres on `infra-postgres:5432` (host port 5433), database `noknok`, user `dba
 
 Tables: `sessions`, `users`, `services`, `grants`, `oauth_requests`, `oauth_sessions`.
 
+- `users` — role column: `owner`, `admin`, `user`
+- `services` — seeded from `services.json` on startup (ON CONFLICT DO NOTHING)
+- `grants` — user×service access matrix (CASCADE on delete)
+
 ## Docker
 
 - Image/container: `primal-noknok`
@@ -55,7 +59,7 @@ Tables: `sessions`, `users`, `services`, `grants`, `oauth_requests`, `oauth_sess
 6. User authenticates + approves at auth server
 7. Auth server redirects to `/oauth/callback?code=...&state=...&iss=...`
 8. noknok calls indigo ProcessCallback → gets DID
-9. DID verified against OWNER_DID → noknok session created → cookie set
+9. DID verified against users table → noknok session created → cookie set
 10. Redirect back to original service → forwardAuth passes with X-User-DID header
 
 ### OAuth Endpoints
@@ -63,3 +67,37 @@ Tables: `sessions`, `users`, `services`, `grants`, `oauth_requests`, `oauth_sess
 - `GET /.well-known/oauth-client-metadata` — OAuth client metadata document
 - `GET /oauth/jwks.json` — Public JWK Set for client assertion
 - `GET /oauth/callback` — OAuth authorization callback
+
+## Admin Panel
+
+Accessible by clicking the username in the portal header (owner/admin only).
+
+### Role Hierarchy
+
+| Action | Owner | Admin | User |
+|--------|-------|-------|------|
+| View portal | All services | All services | Granted only |
+| Open admin panel | Yes | Yes | No |
+| Add/remove owner | Yes | No | No |
+| Add/remove admin | Yes | No | No |
+| Add/remove user | Yes | Yes | No |
+| Manage services | Yes | Yes | No |
+| Manage grants | Yes | Yes | No |
+
+### Admin API Endpoints
+
+All under `/admin/api`, protected by `requireAdmin` middleware:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | /users | List all users |
+| POST | /users | Create user (resolve handle → DID) |
+| PUT | /users/:id/role | Change user role |
+| DELETE | /users/:id | Delete user |
+| GET | /services | List all services |
+| POST | /services | Create service |
+| PUT | /services/:id | Update service |
+| DELETE | /services/:id | Delete service |
+| GET | /grants | List all grants |
+| POST | /grants | Create grant |
+| DELETE | /grants/:id | Delete grant |
