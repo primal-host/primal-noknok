@@ -45,6 +45,21 @@ func main() {
 	cancel()
 	slog.Info("owner seeded", "did", cfg.OwnerDID)
 
+	// Seed services from JSON file and grant owner access to all.
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	if err := db.SeedServices(ctx, "services.json"); err != nil {
+		cancel()
+		slog.Error("failed to seed services", "error", err)
+		os.Exit(1)
+	}
+	if err := db.GrantOwnerAllServices(ctx, cfg.OwnerDID); err != nil {
+		cancel()
+		slog.Error("failed to grant owner services", "error", err)
+		os.Exit(1)
+	}
+	cancel()
+	slog.Info("services seeded and owner granted")
+
 	// OAuth client.
 	store := atproto.NewPgStore(db.Pool)
 	oauthClient, err := atproto.NewOAuthClient(cfg.PublicURL, cfg.OAuthPrivateKey, store)
