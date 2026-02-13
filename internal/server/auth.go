@@ -16,6 +16,7 @@ func (s *Server) handleHealth(c echo.Context) error {
 
 // handleAuth is the Traefik forwardAuth endpoint.
 // Valid session → 200 with X-User-DID and X-User-Handle headers.
+// Authorization header present → 200 (let backend validate the token).
 // No/invalid session → 302 redirect to login page.
 func (s *Server) handleAuth(c echo.Context) error {
 	cookie, err := c.Cookie(session.CookieName())
@@ -26,6 +27,13 @@ func (s *Server) handleAuth(c echo.Context) error {
 			c.Response().Header().Set("X-User-Handle", sess.Handle)
 			return c.NoContent(http.StatusOK)
 		}
+	}
+
+	// Pass through requests with an Authorization header (e.g. PATs, API tokens)
+	// so the backend service can validate them itself.
+	if c.Request().Header.Get("X-Forwarded-Authorization") != "" ||
+		c.Request().Header.Get("Authorization") != "" {
+		return c.NoContent(http.StatusOK)
 	}
 
 	// Build redirect URL from forwarded headers.
