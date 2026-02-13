@@ -64,8 +64,13 @@ func (s *Server) handleOAuthCallback(c echo.Context) error {
 		return c.Redirect(http.StatusFound, s.cfg.PublicURL+"/login?error="+url.QueryEscape("Authentication failed. Please try again."))
 	}
 
-	// Phase 1: Only the owner DID is allowed.
-	if did != s.cfg.OwnerDID {
+	// Check if user exists in the users table.
+	exists, err := s.db.UserExists(c.Request().Context(), did)
+	if err != nil {
+		slog.Error("user lookup failed", "did", did, "error", err)
+		return c.Redirect(http.StatusFound, s.cfg.PublicURL+"/login?error="+url.QueryEscape("Internal error. Please try again."))
+	}
+	if !exists {
 		slog.Warn("unauthorized DID attempted login", "did", did, "handle", resolvedHandle)
 		return c.Redirect(http.StatusFound, s.cfg.PublicURL+"/login?error="+url.QueryEscape("Access denied. You are not authorized."))
 	}
