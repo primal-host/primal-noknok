@@ -1,43 +1,13 @@
 package server
 
 import (
-	"encoding/json"
 	"log/slog"
 	"net/http"
-	"os"
-	"sync"
 
 	"github.com/labstack/echo/v4"
+	"github.com/primal-host/noknok/internal/database"
 	"github.com/primal-host/noknok/internal/session"
 )
-
-// Service represents a protected service shown in the portal.
-type Service struct {
-	Slug        string `json:"slug"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	URL         string `json:"url"`
-	IconURL     string `json:"icon_url"`
-}
-
-var (
-	services     []Service
-	servicesOnce sync.Once
-)
-
-func loadServices() []Service {
-	servicesOnce.Do(func() {
-		data, err := os.ReadFile("services.json")
-		if err != nil {
-			slog.Warn("failed to load services.json", "error", err)
-			return
-		}
-		if err := json.Unmarshal(data, &services); err != nil {
-			slog.Warn("failed to parse services.json", "error", err)
-		}
-	})
-	return services
-}
 
 // handlePortal renders the service catalog page (requires valid session).
 func (s *Server) handlePortal(c echo.Context) error {
@@ -51,11 +21,31 @@ func (s *Server) handlePortal(c echo.Context) error {
 		return c.Redirect(http.StatusFound, s.cfg.PublicURL+"/login")
 	}
 
-	svcs := loadServices()
-	return c.HTML(http.StatusOK, portalHTML(sess.Handle, svcs))
+	ctx := c.Request().Context()
+
+	user, err := s.db.GetUserByDID(ctx, sess.DID)
+	if err != nil {
+		slog.Warn("portal: user lookup failed", "did", sess.DID, "error", err)
+		return c.Redirect(http.StatusFound, s.cfg.PublicURL+"/login")
+	}
+
+	isAdmin := user.Role == "owner" || user.Role == "admin"
+
+	var svcs []database.Service
+	if isAdmin {
+		svcs, err = s.db.ListServices(ctx)
+	} else {
+		svcs, err = s.db.ListServicesForUser(ctx, user.ID)
+	}
+	if err != nil {
+		slog.Error("portal: failed to load services", "error", err)
+		svcs = nil
+	}
+
+	return c.HTML(http.StatusOK, portalHTML(sess.Handle, svcs, isAdmin, user.Role))
 }
 
-func portalHTML(handle string, svcs []Service) string {
+func portalHTML(handle string, svcs []database.Service, isAdmin bool, role string) string {
 	cards := ""
 	for _, svc := range svcs {
 		initial := "?"
@@ -74,6 +64,17 @@ func portalHTML(handle string, svcs []Service) string {
 
 	if cards == "" {
 		cards = `<p class="empty">No services configured.</p>`
+	}
+
+	// Username display: clickable for admins/owners, plain for users.
+	handleHTML := `<span>` + handle + `</span>`
+	if isAdmin {
+		handleHTML = `<span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px" onclick="openAdmin()">` + handle + `</span>`
+	}
+
+	adminHTML := ""
+	if isAdmin {
+		adminHTML = adminPanelHTML(role)
 	}
 
 	return `<!DOCTYPE html>
@@ -171,7 +172,7 @@ func portalHTML(handle string, svcs []Service) string {
 <div class="header">
   <h1>noknok</h1>
   <div class="user">
-    <span>` + handle + `</span>
+    ` + handleHTML + `
     <form method="POST" action="/logout" style="margin:0">
       <button class="logout" type="submit">Sign Out</button>
     </form>
@@ -179,6 +180,7 @@ func portalHTML(handle string, svcs []Service) string {
 </div>
 <div class="grid">` + cards + `
 </div>
+` + adminHTML + `
 </body>
 </html>`
 }
