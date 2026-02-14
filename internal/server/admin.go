@@ -443,19 +443,15 @@ function buildDetail(card, svcId) {
     greenBtn.className = 'detail-btn db-outline';
     greenBtn.onclick = noop;
   } else {
-    // Red: no access (clickable to grant). Yellow: outline spacer. Green: has access (clickable to revoke).
+    // Red: no access. Green: has access. Either button toggles the grant.
     var hasGrant = !!selectedUserGrants[svcId];
-    if (hasGrant) {
-      redBtn.className = 'detail-btn db-outline';
-      redBtn.onclick = noop;
-      greenBtn.className = 'detail-btn db-green';
-      (function(sid, c) { greenBtn.onclick = function(e) { e.stopPropagation(); e.preventDefault(); toggleCardGrant(sid, c); }; })(svcId, card);
-    } else {
-      redBtn.className = 'detail-btn db-red';
-      (function(sid, c) { redBtn.onclick = function(e) { e.stopPropagation(); e.preventDefault(); toggleCardGrant(sid, c); }; })(svcId, card);
-      greenBtn.className = 'detail-btn db-outline';
-      greenBtn.onclick = noop;
-    }
+    redBtn.className = 'detail-btn ' + (hasGrant ? 'db-outline' : 'db-red');
+    greenBtn.className = 'detail-btn ' + (hasGrant ? 'db-green' : 'db-outline');
+    (function(sid, c) {
+      var handler = function(e) { e.stopPropagation(); e.preventDefault(); toggleCardGrant(sid, c); };
+      redBtn.onclick = handler;
+      greenBtn.onclick = handler;
+    })(svcId, card);
     yellowBtn.className = 'detail-btn db-outline';
     yellowBtn.onclick = noop;
   }
