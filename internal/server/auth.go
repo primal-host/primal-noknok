@@ -120,6 +120,10 @@ func (s *Server) handleDisabled(c echo.Context) error {
 }
 
 func disabledHTML(serviceName string) string {
+	initial := "?"
+	if len(serviceName) > 0 {
+		initial = string([]rune(serviceName)[0])
+	}
 	return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -137,51 +141,78 @@ func disabledHTML(serviceName string) string {
     align-items: center;
     justify-content: center;
   }
-  .box {
-    text-align: center;
-    max-width: 420px;
-    padding: 2.5rem 2rem;
+  .card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 1.25rem;
+    position: relative;
+    min-width: 280px;
   }
-  .indicator {
+  .icon {
     width: 48px;
     height: 48px;
+    background: #3b82f6;
     border-radius: 10px;
-    background: #ef4444;
-    margin: 0 auto 1.5rem;
-  }
-  h1 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-size: 1.25rem;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .info h3 {
+    font-size: 1rem;
     font-weight: 600;
     color: #f8fafc;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
   }
-  p {
-    font-size: 0.875rem;
+  .info p {
+    font-size: 0.8125rem;
     color: #94a3b8;
-    margin-bottom: 2rem;
-    line-height: 1.5;
   }
-  .close-btn {
-    background: #334155;
-    color: #e2e8f0;
-    border: none;
-    padding: 0.625rem 1.5rem;
-    border-radius: 8px;
+  .disabled-dot {
+    position: absolute;
+    top: 0.5rem;
+    right: 2.5rem;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 4px;
+    background: #ef4444;
+  }
+  .close-x {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    color: #64748b;
     font-size: 0.875rem;
-    cursor: pointer;
-    transition: background 0.15s;
     text-decoration: none;
-    display: inline-block;
+    width: 1.75rem;
+    height: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid #475569;
+    border-radius: 50%;
+    cursor: pointer;
+    background: none;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
   }
-  .close-btn:hover { background: #475569; }
+  .close-x:hover { color: #fff; border-color: #f97316; background: #f97316; }
 </style>
 </head>
 <body>
-<div class="box">
-  <div class="indicator"></div>
-  <h1>` + serviceName + ` is disabled</h1>
-  <p>This service has been temporarily disabled by an administrator.</p>
-  <button class="close-btn" onclick="goBack()">Close</button>
+<div class="card">
+  <div class="icon">` + initial + `</div>
+  <div class="info">
+    <h3>` + serviceName + `</h3>
+    <p>Disabled by administrator</p>
+  </div>
+  <div class="disabled-dot"></div>
+  <button class="close-x" onclick="goBack()">&times;</button>
 </div>
 <script>
 function goBack() {
