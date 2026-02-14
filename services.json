@@ -67,7 +67,7 @@
     "slug": "primal-pds",
     "name": "PDS",
     "description": "AT Protocol Personal Data Server",
-    "url": "https://pds.primal.host",
+    "url": "https://pds.primal.host/dashboard",
     "icon_url": "",
     "admin_role": "admin"
   }
