@@ -356,7 +356,7 @@ func (s *Server) checkServicesHealth(svcs []database.Service) map[int64]bool {
 				return
 			}
 			resp.Body.Close()
-			ch <- result{id, true}
+			ch <- result{id, resp.StatusCode < 500}
 		}(svc.ID, svc.URL)
 	}
 	wg.Wait()
