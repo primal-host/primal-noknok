@@ -78,6 +78,12 @@ func (s *Server) Shutdown(ctx context.Context) error {
 func (s *Server) startHealthPoller() {
 	s.healthStop = make(chan struct{})
 	go func() {
+		// Wait one cycle before the first check to let Traefik routes settle after startup.
+		select {
+		case <-time.After(60 * time.Second):
+		case <-s.healthStop:
+			return
+		}
 		s.refreshHealth()
 		ticker := time.NewTicker(60 * time.Second)
 		defer ticker.Stop()
