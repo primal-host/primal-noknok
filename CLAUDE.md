@@ -41,7 +41,7 @@ Tables: `sessions`, `users`, `services`, `grants`, `oauth_requests`, `oauth_sess
 
 - `sessions` — `group_id` column links multiple identities per browser; `token` is 64-char hex; sessions expire per `SESSION_TTL`
 - `users` — role column: `owner`, `admin`, `user`
-- `services` — seeded from `services.json` on startup (ON CONFLICT slug DO UPDATE admin_role); `admin_role` column (default 'admin') sets role for owners/admins
+- `services` — seeded from `services.json` on startup (ON CONFLICT slug DO UPDATE admin_role); `admin_role` column (default 'admin') sets role for owners/admins; `enabled` (bool, default true) and `public` (bool, default false) columns for service status
 - `grants` — user×service access matrix (CASCADE on delete); `role` column (free-text, default 'user') for per-service role granularity
 
 ## Docker
@@ -84,12 +84,15 @@ All `primal.host` infrastructure services use `noknok-auth@docker` middleware:
 
 The `/auth` endpoint enforces per-service access:
 
-- **Owner/Admin** → 200 OK for all services (full access)
+- **Disabled service** → browser: 302 redirect to portal; non-browser: 503 Service Unavailable
+- **Owner/Admin** → 200 OK for all enabled services (full access)
 - **Regular user with grant** → 200 OK with `X-User-Role` header
 - **Regular user without grant** → browser: 302 redirect to portal; non-browser: 403
 - **No valid session + browser** → 302 redirect to login
 - **No valid session + non-browser** (git, curl) → 401 so credential helpers can retry
 - **Authorization header present** → 200 passthrough (lets backend validate tokens/PATs)
+
+Service enabled status is checked before session validation — disabled services block all access.
 
 ### ForwardAuth Response Headers
 
@@ -131,8 +134,8 @@ Multiple Bluesky identities per browser via session groups (`group_id` UUID).
 
 ### Tab Management
 
-- **BroadcastChannel `noknok_portal`**: duplicate portal tabs (from forwardAuth redirects) detect the primary and auto-close, sending a `focus` message first
-- **Grant revocation**: closing tracked service tabs when grants are toggled off via admin dots
+- **BroadcastChannel `noknok_portal`**: duplicate portal tabs (from forwardAuth redirects) detect the primary and auto-close, sending a `focus` message first; primary reloads on `focus` message to pick up fresh state
+- **Grant revocation**: closing tracked service tabs when grants are toggled off via admin detail panel
 - **Logout**: all tracked service tabs closed on form submit
 - **Auto-reload**: portal reloads on tab focus after >5s hidden to refresh grants/cards
 
@@ -142,9 +145,23 @@ Inline card on portal page (not overlay — overlays broken on iPad Safari). Ope
 
 ### Tabs
 
-- **Users**: radio-select users; selecting shows grant dots on service cards (green=granted, gray=revoked, clickable to toggle); single Delete button enabled on selection; add-user form requires all fields (handle, username, role) before Add enables
+- **Users**: sorted by role (owners first, then admins, then users); first user auto-selected; radio-select users; single Delete button enabled on selection; add-user form requires all fields (handle, username, role) before Add enables
 - **Services**: add-service form requires name, slug, URL before Add enables; inline admin_role editing; single Delete button per row
 - **Access**: checkbox matrix of users × services with per-grant role editing
+
+### Service Cards (Admin Mode)
+
+Traffic light indicators (read-only) appear on each card's top-right:
+
+- **Admin/owner selected**: red=disabled, yellow=public, green=healthy (all three show service status)
+- **Regular user selected**: green=has access, all off=no access
+
+Clicking a service card in admin mode opens a slide-in detail panel with three large toggle buttons:
+
+- **Admin/owner selected**: red toggles enabled/disabled, yellow toggles public/internal, green is outline spacer
+- **Regular user selected**: red (no access, click to grant) or green (has access, click to revoke), yellow is outline spacer
+
+Disabled services show a red dot on cards for all users (server-side rendered, no JS needed).
 
 ### Role Hierarchy
 
@@ -182,7 +199,10 @@ All under `/admin/api`, protected by `requireAdmin` middleware:
 | GET | /services | List all services |
 | POST | /services | Create service |
 | PUT | /services/:id | Update service (name, url, admin_role) |
+| PUT | /services/:id/enabled | Toggle service enabled/disabled |
+| PUT | /services/:id/public | Toggle service public/internal |
 | DELETE | /services/:id | Delete service |
+| GET | /services/health | Parallel health check all services (HEAD requests) |
 | GET | /grants | List all grants |
 | POST | /grants | Create/update grant (user_id, service_id, role) |
 | DELETE | /grants/:id | Delete grant |
