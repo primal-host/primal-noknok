@@ -275,6 +275,21 @@ func (db *DB) DeleteGrantByUserService(ctx context.Context, userID, serviceID in
 	return err
 }
 
+// GetServiceByHost returns the service whose URL contains the given host.
+// Returns nil (no error) if no service matches.
+func (db *DB) GetServiceByHost(ctx context.Context, host string) (*Service, error) {
+	var s Service
+	err := db.Pool.QueryRow(ctx, `
+		SELECT id, slug, name, description, url, COALESCE(icon_url, ''), admin_role, enabled, public, created_at
+		FROM services WHERE url LIKE '%' || $1 || '%'
+		LIMIT 1`, host).
+		Scan(&s.ID, &s.Slug, &s.Name, &s.Description, &s.URL, &s.IconURL, &s.AdminRole, &s.Enabled, &s.Public, &s.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
 // GetUserServiceRole returns the role a user has for a service whose URL
 // contains the given host. For owner/admin users, returns the service's
 // admin_role. For regular users, returns the grant's role.
