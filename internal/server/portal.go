@@ -352,15 +352,26 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
     color: #fff;
     flex-shrink: 0;
   }
+  .info {
+    flex: 1;
+    min-width: 0;
+    padding-right: 1.5rem;
+  }
   .info h3 {
     font-size: 1rem;
     font-weight: 600;
     color: #f8fafc;
     margin-bottom: 0.125rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .info p {
     font-size: 0.8125rem;
     color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .empty {
     color: #475569;
