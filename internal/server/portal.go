@@ -478,22 +478,23 @@ document.addEventListener('keydown', function(e) {
     xhr.onreadystatechange = function() {
       if (xhr.readyState !== 4 || xhr.status !== 200) return;
       try {
-        var down = JSON.parse(xhr.responseText);
+        var data = JSON.parse(xhr.responseText);
         var ap = document.getElementById('admin-panel');
         if (ap && ap.style.display !== 'none') return;
-        var downMap = {};
-        for (var i = 0; i < down.length; i++) downMap[down[i]] = true;
+        var downMap = {}, disabledMap = {};
+        for (var i = 0; i < data.down.length; i++) downMap[data.down[i]] = true;
+        for (var i = 0; i < data.disabled.length; i++) disabledMap[data.disabled[i]] = true;
         var cards = document.querySelectorAll('.card[data-svc-id]');
         for (var i = 0; i < cards.length; i++) {
           var card = cards[i];
-          if (card.getAttribute('data-svc-status') === 'red') continue;
-          var isDown = !!downMap[card.getAttribute('data-svc-id')];
-          card.setAttribute('data-svc-status', isDown ? 'yellow' : 'green');
+          var svcId = card.getAttribute('data-svc-id');
+          var status = disabledMap[svcId] ? 'red' : (downMap[svcId] ? 'yellow' : 'green');
+          card.setAttribute('data-svc-status', status);
           var dots = card.querySelectorAll('.tl-dot');
           if (dots.length < 3) continue;
-          dots[0].className = 'tl-dot tl-enabled tl-off';
-          dots[1].className = 'tl-dot tl-public ' + (isDown ? 'tl-yellow' : 'tl-off');
-          dots[2].className = 'tl-dot tl-health ' + (isDown ? 'tl-off' : 'tl-green');
+          dots[0].className = 'tl-dot tl-enabled ' + (status === 'red' ? 'tl-red' : 'tl-off');
+          dots[1].className = 'tl-dot tl-public ' + (status === 'yellow' ? 'tl-yellow' : 'tl-off');
+          dots[2].className = 'tl-dot tl-health ' + (status === 'green' ? 'tl-green' : 'tl-off');
         }
       } catch(e) {}
     };
@@ -506,7 +507,7 @@ document.addEventListener('keydown', function(e) {
 </html>`
 }
 
-// handleHealthStatus returns an array of service IDs that are unhealthy.
+// handleHealthStatus returns service IDs that are down or disabled.
 func (s *Server) handleHealthStatus(c echo.Context) error {
 	cookie, err := c.Cookie(session.CookieName())
 	if err != nil || cookie.Value == "" {
@@ -517,12 +518,20 @@ func (s *Server) handleHealthStatus(c echo.Context) error {
 		return c.NoContent(http.StatusUnauthorized)
 	}
 
+	svcs, err := s.db.ListServices(c.Request().Context())
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed"})
+	}
 	health := s.cachedHealth()
+
 	down := make([]int64, 0)
-	for id, alive := range health {
-		if !alive {
-			down = append(down, id)
+	disabled := make([]int64, 0)
+	for _, svc := range svcs {
+		if !svc.Enabled {
+			disabled = append(disabled, svc.ID)
+		} else if !health[svc.ID] {
+			down = append(down, svc.ID)
 		}
 	}
-	return c.JSON(http.StatusOK, down)
+	return c.JSON(http.StatusOK, map[string][]int64{"down": down, "disabled": disabled})
 }
