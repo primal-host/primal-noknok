@@ -196,6 +196,13 @@ function esc(s) {
 }
 
 function renderUsers(el) {
+  // Sort: owners first, then admins, then users.
+  var roleOrder = { owner: 0, admin: 1, user: 2 };
+  adminData.users.sort(function(a, b) {
+    var oa = roleOrder[a.role] !== undefined ? roleOrder[a.role] : 3;
+    var ob = roleOrder[b.role] !== undefined ? roleOrder[b.role] : 3;
+    return oa - ob;
+  });
   var html = '<table class="admin-tbl"><thead><tr><th style="width:30px"></th><th>Handle</th><th>Username</th><th>Role</th><th>DID</th></tr></thead><tbody>';
   for (var i = 0; i < adminData.users.length; i++) {
     var u = adminData.users[i];
@@ -219,28 +226,28 @@ function renderUsers(el) {
     '<button class="admin-btn-danger" id="del-user-btn" onclick="deleteSelectedUser()" disabled style="opacity:0.4;cursor:default;padding:0.375rem 0.75rem;font-size:0.8125rem">Delete</button></div>';
   html += '<div id="users-msg"></div>';
   el.innerHTML = html;
-  if (selectedUserId) {
-    var found = false;
+  // Re-select or auto-select first user.
+  var targetId = selectedUserId;
+  if (!targetId && adminData.users.length > 0) {
+    targetId = adminData.users[0].id;
+  }
+  if (targetId) {
     var radios = el.querySelectorAll('input[name="sel-user"]');
+    var found = false;
     for (var j = 0; j < radios.length; j++) {
-      if (parseInt(radios[j].value) === selectedUserId) {
+      if (parseInt(radios[j].value) === targetId) {
         radios[j].checked = true;
         found = true;
         break;
       }
     }
     if (found) {
-      var btn = document.getElementById('del-user-btn');
-      btn.disabled = false;
-      btn.style.opacity = '1';
-      btn.style.cursor = 'pointer';
+      selectUser(targetId);
     } else {
       selectedUserId = 0;
+      selectedUserRole = '';
       selectedUserGrants = {};
-      updateGrantDots();
     }
-  } else {
-    showTrafficLights();
   }
 }
 
@@ -293,60 +300,38 @@ function updateRole(id, role) {
 }
 
 var selectedUserId = 0;
+var selectedUserRole = '';
 var selectedUserGrants = {};
 
 function selectUser(userId) {
   selectedUserId = userId;
+  selectedUserRole = '';
+  for (var i = 0; i < adminData.users.length; i++) {
+    if (adminData.users[i].id === userId) {
+      selectedUserRole = adminData.users[i].role;
+      break;
+    }
+  }
   var btn = document.getElementById('del-user-btn');
   if (btn) {
     btn.disabled = false;
     btn.style.opacity = '1';
     btn.style.cursor = 'pointer';
   }
-  api('GET', '/grants', null, function(err, grants) {
-    if (err) return;
+  if (selectedUserRole === 'owner' || selectedUserRole === 'admin') {
     selectedUserGrants = {};
-    for (var i = 0; i < grants.length; i++) {
-      if (grants[i].user_id === userId) {
-        selectedUserGrants[grants[i].service_id] = grants[i];
-      }
-    }
-    updateGrantDots();
-  });
-}
-
-function updateGrantDots() {
-  var cards = document.querySelectorAll('.card[data-svc-id]');
-  for (var i = 0; i < cards.length; i++) {
-    var card = cards[i];
-    var svcId = parseInt(card.getAttribute('data-svc-id'));
-    var dot = card.querySelector('.grant-dot');
-    var tl = card.querySelector('.traffic-light');
-    if (selectedUserId) {
-      // User selected: show grant dots, hide traffic lights.
-      if (tl) tl.style.display = 'none';
-      if (dot) {
-        dot.style.display = 'block';
-        if (selectedUserGrants[svcId]) {
-          dot.className = 'grant-dot granted';
-        } else {
-          dot.className = 'grant-dot revoked';
-        }
-        (function(sid) {
-          dot.onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleCardGrant(sid);
-          };
-        })(svcId);
-      }
-    } else {
-      // No user selected: hide grant dots, show traffic lights.
-      if (dot) { dot.style.display = 'none'; dot.onclick = null; }
-    }
-  }
-  if (!selectedUserId) {
     showTrafficLights();
+  } else {
+    api('GET', '/grants', null, function(err, grants) {
+      if (err) return;
+      selectedUserGrants = {};
+      for (var i = 0; i < grants.length; i++) {
+        if (grants[i].user_id === userId) {
+          selectedUserGrants[grants[i].service_id] = grants[i];
+        }
+      }
+      showUserAccess();
+    });
   }
 }
 
@@ -404,6 +389,37 @@ function showTrafficLights() {
   });
 }
 
+function showUserAccess() {
+  var cards = document.querySelectorAll('.card[data-svc-id]');
+  for (var i = 0; i < cards.length; i++) {
+    var card = cards[i];
+    var svcId = parseInt(card.getAttribute('data-svc-id'));
+    var tl = card.querySelector('.traffic-light');
+    if (!tl) continue;
+    tl.style.display = 'flex';
+    var dots = tl.querySelectorAll('.tl-dot');
+    if (dots.length < 3) continue;
+    var hasGrant = !!selectedUserGrants[svcId];
+    // All dots off, bottom green if granted.
+    dots[0].className = 'tl-dot tl-enabled tl-off';
+    dots[1].className = 'tl-dot tl-public tl-off';
+    dots[2].className = 'tl-dot tl-health ' + (hasGrant ? 'tl-green' : 'tl-off');
+    // Clicking any dot toggles the grant.
+    dots[0].onclick = null;
+    dots[1].onclick = null;
+    (function(sid) {
+      var handler = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleCardGrant(sid);
+      };
+      dots[0].onclick = handler;
+      dots[1].onclick = handler;
+      dots[2].onclick = handler;
+    })(svcId);
+  }
+}
+
 function toggleCardGrant(svcId) {
   if (!selectedUserId) return;
   var grant = selectedUserGrants[svcId];
@@ -415,7 +431,7 @@ function toggleCardGrant(svcId) {
       if (card && card.target && typeof closeTrackedWindow === 'function') {
         closeTrackedWindow(card.target);
       }
-      updateGrantDots();
+      showUserAccess();
     });
   } else {
     api('POST', '/grants', { user_id: selectedUserId, service_id: svcId, role: 'user' }, function(err) {
@@ -428,7 +444,7 @@ function toggleCardGrant(svcId) {
             selectedUserGrants[grants[i].service_id] = grants[i];
           }
         }
-        updateGrantDots();
+        showUserAccess();
       });
     });
   }
@@ -440,8 +456,8 @@ function deleteSelectedUser() {
   api('DELETE', '/users/' + selectedUserId, null, function(err) {
     if (err) { alert(err); return; }
     selectedUserId = 0;
+    selectedUserRole = '';
     selectedUserGrants = {};
-    updateGrantDots();
     loadTab('users');
   });
 }
