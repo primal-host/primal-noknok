@@ -345,7 +345,7 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
   .icon {
     width: 48px;
     height: 48px;
-    background: #dbeafe;
+    background: #6688aa;
     border-radius: 10px;
     display: flex;
     align-items: center;
