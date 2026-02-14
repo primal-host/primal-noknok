@@ -56,8 +56,12 @@ func (s *Server) handlePortal(c echo.Context) error {
 	// Check if ?admin is in the URL (works with ?admin, ?admin=, ?admin=1).
 	_, adminOpen := c.QueryParams()["admin"]
 	adminOpen = adminOpen && isAdmin
+	adminTab := c.QueryParam("tab")
+	if adminTab == "" {
+		adminTab = "users"
+	}
 
-	return c.HTML(http.StatusOK, portalHTML(sess, group, svcs, isAdmin, user.Role, adminOpen))
+	return c.HTML(http.StatusOK, portalHTML(sess, group, svcs, isAdmin, user.Role, adminOpen, adminTab))
 }
 
 type identityInfo struct {
@@ -66,7 +70,7 @@ type identityInfo struct {
 	Active bool
 }
 
-func portalHTML(active *session.Session, group []session.Session, svcs []database.Service, isAdmin bool, role string, adminOpen bool) string {
+func portalHTML(active *session.Session, group []session.Session, svcs []database.Service, isAdmin bool, role string, adminOpen bool, adminTab string) string {
 	cards := ""
 	for _, svc := range svcs {
 		initial := "?"
@@ -125,7 +129,7 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
 
 	adminHTML := ""
 	if isAdmin {
-		adminHTML = adminPanelHTML(role, adminOpen)
+		adminHTML = adminPanelHTML(role, adminOpen, adminTab)
 	}
 
 	return `<!DOCTYPE html>

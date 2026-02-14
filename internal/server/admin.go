@@ -1,6 +1,6 @@
 package server
 
-func adminPanelHTML(role string, open bool) string {
+func adminPanelHTML(role string, open bool, activeTab string) string {
 	ownerOnly := ""
 	if role == "owner" {
 		ownerOnly = `
@@ -15,7 +15,19 @@ func adminPanelHTML(role string, open bool) string {
 
 	autoLoad := ""
 	if open {
-		autoLoad = `loadTab('users');`
+		autoLoad = `
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() { loadTab('` + activeTab + `'); });
+} else {
+  loadTab('` + activeTab + `');
+}`
+	}
+
+	tabActive := func(name string) string {
+		if name == activeTab {
+			return " active"
+		}
+		return ""
 	}
 
 	return `
@@ -26,9 +38,9 @@ func adminPanelHTML(role string, open bool) string {
     <a href="/" class="admin-close">&times;</a>
   </div>
   <div class="admin-tabs">
-    <a href="/?admin&tab=users" class="admin-tab active" data-tab="users">Users</a>
-    <a href="/?admin&tab=services" class="admin-tab" data-tab="services">Services</a>
-    <a href="/?admin&tab=access" class="admin-tab" data-tab="access">Access</a>
+    <a href="/?admin&tab=users" class="admin-tab` + tabActive("users") + `" data-tab="users">Users</a>
+    <a href="/?admin&tab=services" class="admin-tab` + tabActive("services") + `" data-tab="services">Services</a>
+    <a href="/?admin&tab=access" class="admin-tab` + tabActive("access") + `" data-tab="access">Access</a>
   </div>
   <div id="admin-content" class="admin-body">
   </div>
@@ -57,15 +69,19 @@ func adminPanelHTML(role string, open bool) string {
   margin: 0;
 }
 .admin-close {
-  color: #94a3b8;
-  font-size: 1.5rem;
+  color: #64748b;
+  font-size: 0.875rem;
   text-decoration: none;
-  line-height: 1;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  transition: color 0.15s, background 0.15s;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #475569;
+  border-radius: 50%;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
-.admin-close:hover { color: #f8fafc; background: #334155; }
+.admin-close:hover { color: #fff; border-color: #f97316; background: #f97316; }
 .admin-tabs {
   display: flex;
   border-bottom: 1px solid #334155;
@@ -121,19 +137,6 @@ func adminPanelHTML(role string, open bool) string {
 const ROLE = '` + role + `';
 let currentTab = 'users';
 let adminData = { users: [], services: [], grants: [] };
-
-// Tab links: prevent navigation, switch tab in-place.
-document.querySelectorAll('.admin-tab').forEach(function(t) {
-  t.addEventListener('click', function(e) {
-    e.preventDefault();
-    var tab = t.getAttribute('data-tab');
-    currentTab = tab;
-    document.querySelectorAll('.admin-tab').forEach(function(x) {
-      x.classList.toggle('active', x.getAttribute('data-tab') === tab);
-    });
-    loadTab(tab);
-  });
-});
 
 async function api(method, path, body) {
   var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
