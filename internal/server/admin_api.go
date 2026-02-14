@@ -1,10 +1,13 @@
 package server
 
 import (
+	"crypto/tls"
 	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/primal-host/noknok/internal/database"
@@ -293,6 +296,80 @@ func (s *Server) handleDeleteService(c echo.Context) error {
 
 	slog.Info("service deleted", "service_id", id, "by", caller.Handle)
 	return c.NoContent(http.StatusNoContent)
+}
+
+func (s *Server) handleToggleServiceEnabled(c echo.Context) error {
+	caller := adminUser(c)
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid service ID"})
+	}
+	enabled, err := s.db.ToggleServiceEnabled(c.Request().Context(), id)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to toggle"})
+	}
+	slog.Info("service enabled toggled", "service_id", id, "enabled", enabled, "by", caller.Handle)
+	return c.JSON(http.StatusOK, map[string]bool{"enabled": enabled})
+}
+
+func (s *Server) handleToggleServicePublic(c echo.Context) error {
+	caller := adminUser(c)
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid service ID"})
+	}
+	public, err := s.db.ToggleServicePublic(c.Request().Context(), id)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to toggle"})
+	}
+	slog.Info("service public toggled", "service_id", id, "public", public, "by", caller.Handle)
+	return c.JSON(http.StatusOK, map[string]bool{"public": public})
+}
+
+func (s *Server) handleServiceHealth(c echo.Context) error {
+	svcs, err := s.db.ListServices(c.Request().Context())
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to list services"})
+	}
+
+	client := &http.Client{
+		Timeout: 4 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	type result struct {
+		id    int64
+		alive bool
+	}
+
+	var wg sync.WaitGroup
+	ch := make(chan result, len(svcs))
+	for _, svc := range svcs {
+		wg.Add(1)
+		go func(id int64, url string) {
+			defer wg.Done()
+			resp, err := client.Head(url)
+			if err != nil {
+				ch <- result{id, false}
+				return
+			}
+			resp.Body.Close()
+			ch <- result{id, true}
+		}(svc.ID, svc.URL)
+	}
+	wg.Wait()
+	close(ch)
+
+	health := make(map[string]bool)
+	for r := range ch {
+		health[strconv.FormatInt(r.id, 10)] = r.alive
+	}
+	return c.JSON(http.StatusOK, health)
 }
 
 // --- Grants ---
