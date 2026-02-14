@@ -8,9 +8,11 @@ CREATE TABLE IF NOT EXISTS sessions (
     handle     TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at TIMESTAMPTZ NOT NULL,
-    last_seen  TIMESTAMPTZ NOT NULL DEFAULT now()
+    last_seen  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    username   TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions (token);
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS users (
     id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -18,8 +20,11 @@ CREATE TABLE IF NOT EXISTS users (
     handle     TEXT NOT NULL,
     role       TEXT NOT NULL DEFAULT 'user',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    username   TEXT NOT NULL DEFAULT '',
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_nonempty ON users (username) WHERE username != '';
 
 CREATE TABLE IF NOT EXISTS services (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
