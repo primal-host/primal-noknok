@@ -115,7 +115,7 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
 		adminItem = `
       <div class="dd-sep"></div>
       <div class="dd-section">
-        <button class="dd-item dd-btn dd-admin" onclick="openAdmin()">Admin</button>
+        <button class="dd-item dd-btn dd-admin" onclick="document.getElementById('identity-menu').classList.remove('open');openAdmin()">Admin</button>
       </div>`
 	}
 
@@ -315,8 +315,9 @@ function toggleDropdown(e) {
   e.stopPropagation();
   document.getElementById('identity-menu').classList.toggle('open');
 }
-document.addEventListener('click', function() {
-  document.getElementById('identity-menu').classList.remove('open');
+document.addEventListener('click', function(e) {
+  var menu = document.getElementById('identity-menu');
+  if (!menu.contains(e.target)) menu.classList.remove('open');
 });
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') document.getElementById('identity-menu').classList.remove('open');
