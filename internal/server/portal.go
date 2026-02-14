@@ -109,10 +109,14 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
 		logoutItems += fmt.Sprintf(`<form method="POST" action="/logout/one" style="margin:0"><input type="hidden" name="id" value="%d"><button type="submit" class="dd-item dd-btn dd-danger">Log out %s</button></form>`, id.ID, id.Handle)
 	}
 
-	// Admin gear button (only for admin/owner).
-	adminGear := ""
+	// Admin item in dropdown (only for admin/owner).
+	adminItem := ""
 	if isAdmin {
-		adminGear = `<button class="gear-btn" onclick="openAdmin()" title="Admin panel">&#9881;</button>`
+		adminItem = `
+      <div class="dd-sep"></div>
+      <div class="dd-section">
+        <button class="dd-item dd-btn dd-admin" onclick="openAdmin()">Admin</button>
+      </div>`
 	}
 
 	adminHTML := ""
@@ -151,17 +155,6 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
     color: #94a3b8;
     position: relative;
   }
-  .gear-btn {
-    background: none;
-    border: none;
-    color: #64748b;
-    font-size: 1.125rem;
-    cursor: pointer;
-    padding: 0.25rem;
-    transition: color 0.15s;
-    line-height: 1;
-  }
-  .gear-btn:hover { color: #e2e8f0; }
   .dd-trigger {
     background: #334155;
     color: #e2e8f0;
@@ -292,7 +285,6 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
 <div class="header">
   <h1>nokNok</h1>
   <div class="user">
-    ` + adminGear + `
     <button class="dd-trigger" onclick="toggleDropdown(event)">
       ` + active.Handle + ` <span class="dd-arrow">&#9660;</span>
     </button>
@@ -304,6 +296,7 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
       <div class="dd-section">
         <a href="/login" class="dd-add">+ New sign-in...</a>
       </div>
+      ` + adminItem + `
       <div class="dd-sep"></div>
       <div class="dd-section">
         ` + logoutItems + `
