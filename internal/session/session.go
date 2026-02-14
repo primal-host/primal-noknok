@@ -19,6 +19,7 @@ type Session struct {
 	Token     string
 	DID       string
 	Handle    string
+	Username  string
 	ExpiresAt time.Time
 }
 
@@ -49,11 +50,15 @@ func (m *Manager) Create(ctx context.Context, did, handle string) (*http.Cookie,
 		return nil, fmt.Errorf("generate token: %w", err)
 	}
 
+	// Look up username from users table.
+	var username string
+	_ = m.pool.QueryRow(ctx, `SELECT username FROM users WHERE did = $1`, did).Scan(&username)
+
 	expiresAt := time.Now().Add(m.ttl)
 	_, err = m.pool.Exec(ctx, `
-		INSERT INTO sessions (token, did, handle, expires_at)
-		VALUES ($1, $2, $3, $4)
-	`, token, did, handle, expiresAt)
+		INSERT INTO sessions (token, did, handle, username, expires_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`, token, did, handle, username, expiresAt)
 	if err != nil {
 		return nil, fmt.Errorf("insert session: %w", err)
 	}
@@ -82,9 +87,9 @@ func (m *Manager) Create(ctx context.Context, did, handle string) (*http.Cookie,
 func (m *Manager) Validate(ctx context.Context, token string) (*Session, error) {
 	var s Session
 	err := m.pool.QueryRow(ctx, `
-		SELECT token, did, handle, expires_at FROM sessions
+		SELECT token, did, handle, username, expires_at FROM sessions
 		WHERE token = $1 AND expires_at > now()
-	`, token).Scan(&s.Token, &s.DID, &s.Handle, &s.ExpiresAt)
+	`, token).Scan(&s.Token, &s.DID, &s.Handle, &s.Username, &s.ExpiresAt)
 	if err != nil {
 		return nil, err
 	}
