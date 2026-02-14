@@ -366,6 +366,31 @@ document.addEventListener('click', function(e) {
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') document.getElementById('identity-menu').classList.remove('open');
 });
+// Duplicate-tab detection via BroadcastChannel.
+// The first portal tab claims "primary". Any subsequent portal tab
+// that arrives (e.g. from a forwardAuth deny redirect) tries to
+// close itself if a primary already exists.
+(function() {
+  if (typeof BroadcastChannel === 'undefined') return;
+  var ch = new BroadcastChannel('noknok_portal');
+  var isPrimary = false;
+  // Ask if a primary exists.
+  ch.postMessage({ type: 'ping' });
+  // If no pong within 200ms, claim primary.
+  var timer = setTimeout(function() {
+    isPrimary = true;
+  }, 200);
+  ch.onmessage = function(e) {
+    if (e.data.type === 'ping') {
+      // Another tab is asking — respond if we are primary.
+      if (isPrimary) ch.postMessage({ type: 'pong' });
+    } else if (e.data.type === 'pong') {
+      // A primary exists — this tab is a duplicate.
+      clearTimeout(timer);
+      window.close();
+    }
+  };
+})();
 </script>
 </body>
 </html>`

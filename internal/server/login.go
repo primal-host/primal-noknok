@@ -310,6 +310,21 @@ func loginHTML(redirect, errMsg string, hasSession bool) string {
   </form>
   <p class="footer">You will be redirected to authorize at your provider</p>
 </div>
+<script>
+// If user already has a session and the portal is open in another tab,
+// this tab is likely a forwardAuth redirect — try to close it.
+(function() {
+  if (typeof BroadcastChannel === 'undefined') return;
+  var ch = new BroadcastChannel('noknok_portal');
+  ch.postMessage({ type: 'ping' });
+  ch.onmessage = function(e) {
+    if (e.data.type === 'pong') {
+      window.close();
+    }
+  };
+  setTimeout(function() { ch.close(); }, 500);
+})();
+</script>
 </body>
 </html>`
 }
