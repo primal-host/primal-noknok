@@ -21,8 +21,9 @@ type Config struct {
 
 	OAuthPrivateKey string // multibase-encoded ES256 private key
 	SessionTTL      string // duration string, e.g. "24h"
-	OwnerDID      string
-	CookieDomain  string
+	OwnerDID       string
+	OwnerUsername  string
+	CookieDomain   string
 	PublicURL      string
 }
 
@@ -37,7 +38,8 @@ func Load() (*Config, error) {
 		DBSSLMode:    envOrDefault("DB_SSLMODE", "disable"),
 		ListenAddr:   envOrDefault("LISTEN_ADDR", ":4321"),
 		SessionTTL:   envOrDefault("SESSION_TTL", "24h"),
-		OwnerDID:     os.Getenv("OWNER_DID"),
+		OwnerDID:      os.Getenv("OWNER_DID"),
+		OwnerUsername: envOrDefault("OWNER_USERNAME", ""),
 		CookieDomain: envOrDefault("COOKIE_DOMAIN", ".localhost"),
 		PublicURL:     envOrDefault("PUBLIC_URL", "http://noknok.localhost"),
 	}
