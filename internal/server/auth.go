@@ -31,7 +31,7 @@ func (s *Server) handleAuth(c echo.Context) error {
 				accept = c.Request().Header.Get("Accept")
 			}
 			if strings.Contains(accept, "text/html") {
-				return c.Redirect(http.StatusFound, s.cfg.PublicURL+"/disabled?service="+url.QueryEscape(svc.Name))
+				return c.Redirect(http.StatusFound, s.cfg.PublicURL+"/")
 			}
 			return c.NoContent(http.StatusServiceUnavailable)
 		}
@@ -108,109 +108,6 @@ func (s *Server) handleAuth(c echo.Context) error {
 	}
 
 	return c.Redirect(http.StatusFound, loginURL)
-}
-
-// handleDisabled renders a status page for disabled services.
-func (s *Server) handleDisabled(c echo.Context) error {
-	name := c.QueryParam("service")
-	if name == "" {
-		name = "This service"
-	}
-	return c.HTML(http.StatusOK, disabledHTML(name))
-}
-
-func disabledHTML(serviceName string) string {
-	initial := "?"
-	if len(serviceName) > 0 {
-		initial = string([]rune(serviceName)[0])
-	}
-	return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Service Disabled</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #0f172a;
-    color: #e2e8f0;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .card {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    background: #1e293b;
-    border-radius: 12px;
-    padding: 1.25rem;
-    position: relative;
-    min-width: 280px;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .card:hover { background: #334155; }
-  .icon {
-    width: 48px;
-    height: 48px;
-    background: #3b82f6;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #fff;
-    flex-shrink: 0;
-  }
-  .info h3 {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #f8fafc;
-    margin-bottom: 0.25rem;
-  }
-  .info p {
-    font-size: 0.8125rem;
-    color: #94a3b8;
-  }
-  .disabled-dot {
-    position: absolute;
-    top: 0.5rem;
-    right: 2.5rem;
-    width: 1rem;
-    height: 1rem;
-    border-radius: 4px;
-    background: #ef4444;
-  }
-</style>
-</head>
-<body>
-<div class="card" onclick="goBack()">
-  <div class="icon">` + initial + `</div>
-  <div class="info">
-    <h3>` + serviceName + `</h3>
-    <p>Disabled by administrator</p>
-  </div>
-  <div class="disabled-dot"></div>
-</div>
-<script>
-function goBack() {
-  if (typeof BroadcastChannel !== 'undefined') {
-    var ch = new BroadcastChannel('noknok_portal');
-    ch.postMessage({ type: 'focus' });
-  }
-  if (window.opener) {
-    try { window.close(); return; } catch(e) {}
-  }
-  window.location.href = '/';
-}
-</script>
-</body>
-</html>`
 }
 
 // handleLogout destroys the entire session group and redirects to login.
