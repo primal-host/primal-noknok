@@ -6,6 +6,9 @@ func (s *Server) registerRoutes() {
 	s.echo.GET("/login", s.handleLoginPage)
 	s.echo.POST("/login", s.handleLogin)
 	s.echo.POST("/logout", s.handleLogout)
+	s.echo.POST("/switch", s.handleSwitchIdentity)
+	s.echo.POST("/logout/one", s.handleLogoutOne)
+	s.echo.GET("/api/identities", s.handleListIdentities)
 	s.echo.GET("/", s.handlePortal)
 
 	// OAuth endpoints.
