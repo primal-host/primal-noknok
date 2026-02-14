@@ -17,7 +17,8 @@ const redirectCookieName = "noknok_redirect"
 func (s *Server) handleLoginPage(c echo.Context) error {
 	redirect := c.QueryParam("redirect")
 	errMsg := c.QueryParam("error")
-	return c.HTML(http.StatusOK, loginHTML(redirect, errMsg))
+
+	return c.HTML(http.StatusOK, loginHTML(redirect, errMsg, s.hasValidSession(c)))
 }
 
 // handleLogin processes the login form — starts the OAuth flow.
@@ -26,7 +27,7 @@ func (s *Server) handleLogin(c echo.Context) error {
 	redirect := c.FormValue("redirect")
 
 	if handle == "" {
-		return c.HTML(http.StatusOK, loginHTML(redirect, "Handle is required."))
+		return c.HTML(http.StatusOK, loginHTML(redirect, "Handle is required.", s.hasValidSession(c)))
 	}
 
 	// Default bare names to .bsky.social.
@@ -51,7 +52,7 @@ func (s *Server) handleLogin(c echo.Context) error {
 	authURL, err := s.oauth.StartLogin(c.Request().Context(), handle)
 	if err != nil {
 		slog.Warn("OAuth start failed", "handle", handle, "error", err)
-		return c.HTML(http.StatusOK, loginHTML(redirect, "Could not start login. Check your handle and try again."))
+		return c.HTML(http.StatusOK, loginHTML(redirect, "Could not start login. Check your handle and try again.", s.hasValidSession(c)))
 	}
 
 	return c.Redirect(http.StatusFound, authURL)
@@ -157,7 +158,17 @@ func isAllowedRedirect(rawURL string, cfg *config.Config) bool {
 	return u.Host == domain
 }
 
-func loginHTML(redirect, errMsg string) string {
+// hasValidSession returns true if the request has a valid session cookie.
+func (s *Server) hasValidSession(c echo.Context) bool {
+	cookie, err := c.Cookie(session.CookieName())
+	if err != nil || cookie.Value == "" {
+		return false
+	}
+	_, err = s.sess.Validate(c.Request().Context(), cookie.Value)
+	return err == nil
+}
+
+func loginHTML(redirect, errMsg string, hasSession bool) string {
 	errorBlock := ""
 	if errMsg != "" {
 		errorBlock = `<div class="error">` + errMsg + `</div>`
@@ -166,6 +177,11 @@ func loginHTML(redirect, errMsg string) string {
 	redirectInput := ""
 	if redirect != "" {
 		redirectInput = `<input type="hidden" name="redirect" value="` + redirect + `">`
+	}
+
+	closeBtn := ""
+	if hasSession {
+		closeBtn = `<a href="/" class="close-btn" title="Cancel">&times;</a>`
 	}
 
 	return `<!DOCTYPE html>
@@ -192,7 +208,24 @@ func loginHTML(redirect, errMsg string) string {
     width: 100%;
     max-width: 400px;
     box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+    position: relative;
   }
+  .close-btn {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    line-height: 1;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+    width: auto;
+  }
+  .close-btn:hover { color: #e2e8f0; background: #334155; }
   h1 {
     font-size: 1.5rem;
     font-weight: 600;
@@ -260,6 +293,7 @@ func loginHTML(redirect, errMsg string) string {
 </head>
 <body>
 <div class="card">
+  ` + closeBtn + `
   <h1>noknok</h1>
   <p class="subtitle">Sign in with your Bluesky account</p>
   ` + errorBlock + `
