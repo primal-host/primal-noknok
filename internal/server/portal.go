@@ -85,6 +85,7 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
           <p>` + svc.Description + `</p>
         </div>
         <div class="grant-dot" style="display:none"></div>
+        <div class="traffic-light" style="display:none"><div class="tl-dot tl-enabled"></div><div class="tl-dot tl-public"></div><div class="tl-dot tl-health"></div></div>
       </a>`
 	}
 
@@ -274,6 +275,28 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
   .grant-dot.granted:hover { background: #16a34a; }
   .grant-dot.revoked { background: #475569; }
   .grant-dot.revoked:hover { background: #64748b; }
+  .traffic-light {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .tl-dot {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 4px;
+    background: #475569;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .tl-dot.tl-off { background: #475569; }
+  .tl-dot.tl-red { background: #ef4444; }
+  .tl-dot.tl-yellow { background: #eab308; }
+  .tl-dot.tl-green { background: #22c55e; }
+  .tl-dot.tl-health { cursor: default; }
   .icon {
     width: 48px;
     height: 48px;
