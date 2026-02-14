@@ -288,14 +288,44 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
     height: 1rem;
     border-radius: 4px;
     background: #475569;
-    cursor: pointer;
     transition: background 0.15s;
   }
   .tl-dot.tl-off { background: #475569; }
   .tl-dot.tl-red { background: #ef4444; }
   .tl-dot.tl-yellow { background: #eab308; }
   .tl-dot.tl-green { background: #22c55e; }
-  .tl-dot.tl-health { cursor: default; }
+  .detail-panel {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    z-index: 50;
+  }
+  .detail-panel.open { max-height: 80px; }
+  .detail-inner {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.375rem 0;
+    margin-top: 0.375rem;
+  }
+  .detail-btn {
+    flex: 1;
+    height: 44px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .detail-btn:hover { opacity: 0.8; }
+  .detail-btn.db-off { background: #475569; }
+  .detail-btn.db-red { background: #ef4444; }
+  .detail-btn.db-yellow { background: #eab308; }
+  .detail-btn.db-green { background: #22c55e; }
+  .detail-btn.db-readonly { cursor: default; opacity: 0.5; }
+  .detail-btn.db-readonly:hover { opacity: 0.5; }
   .icon {
     width: 48px;
     height: 48px;
@@ -359,6 +389,11 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
 <script>
 var openWindows = {};
 function openService(el) {
+  var ap = document.getElementById('admin-panel');
+  if (ap && ap.style.display !== 'none' && typeof toggleDetail === 'function') {
+    toggleDetail(el);
+    return false;
+  }
   var w = window.open(el.href, el.target);
   if (w) openWindows[el.target] = w;
   return false;

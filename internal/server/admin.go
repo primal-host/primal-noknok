@@ -302,6 +302,8 @@ function updateRole(id, role) {
 var selectedUserId = 0;
 var selectedUserRole = '';
 var selectedUserGrants = {};
+var lastHealthData = {};
+var activeDetailSvcId = 0;
 
 function selectUser(userId) {
   selectedUserId = userId;
@@ -312,6 +314,7 @@ function selectUser(userId) {
       break;
     }
   }
+  closeDetail();
   var btn = document.getElementById('del-user-btn');
   if (btn) {
     btn.disabled = false;
@@ -320,7 +323,7 @@ function selectUser(userId) {
   }
   if (selectedUserRole === 'owner' || selectedUserRole === 'admin') {
     selectedUserGrants = {};
-    showTrafficLights();
+    fetchAndUpdateDots();
   } else {
     api('GET', '/grants', null, function(err, grants) {
       if (err) return;
@@ -330,66 +333,29 @@ function selectUser(userId) {
           selectedUserGrants[grants[i].service_id] = grants[i];
         }
       }
-      showUserAccess();
+      fetchAndUpdateDots();
     });
   }
 }
 
-function showTrafficLights() {
-  // Fetch service data and health, then update all traffic lights.
+function fetchAndUpdateDots() {
   api('GET', '/services', null, function(err, services) {
     if (err) return;
     adminData.services = services;
-    api('GET', '/services/health', null, function(err2, health) {
-      var healthMap = err2 ? {} : (health || {});
-      var cards = document.querySelectorAll('.card[data-svc-id]');
-      for (var i = 0; i < cards.length; i++) {
-        var card = cards[i];
-        var svcId = parseInt(card.getAttribute('data-svc-id'));
-        var tl = card.querySelector('.traffic-light');
-        if (!tl) continue;
-        tl.style.display = 'flex';
-        // Find service data.
-        var svc = null;
-        for (var j = 0; j < adminData.services.length; j++) {
-          if (adminData.services[j].id === svcId) { svc = adminData.services[j]; break; }
-        }
-        var dots = tl.querySelectorAll('.tl-dot');
-        if (dots.length < 3 || !svc) continue;
-        // Top: enabled (gray) / disabled (red).
-        dots[0].className = 'tl-dot tl-enabled ' + (svc.enabled ? 'tl-off' : 'tl-red');
-        (function(sid) {
-          dots[0].onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            api('PUT', '/services/' + sid + '/enabled', {}, function(err3) {
-              if (err3) { alert(err3); return; }
-              showTrafficLights();
-            });
-          };
-        })(svcId);
-        // Middle: internal (gray) / public (yellow).
-        dots[1].className = 'tl-dot tl-public ' + (svc.public ? 'tl-yellow' : 'tl-off');
-        (function(sid) {
-          dots[1].onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            api('PUT', '/services/' + sid + '/public', {}, function(err3) {
-              if (err3) { alert(err3); return; }
-              showTrafficLights();
-            });
-          };
-        })(svcId);
-        // Bottom: health (green = alive, gray = down). Read-only.
-        var alive = healthMap[String(svcId)] === true;
-        dots[2].className = 'tl-dot tl-health ' + (alive ? 'tl-green' : 'tl-off');
-        dots[2].onclick = function(e) { e.preventDefault(); e.stopPropagation(); };
-      }
-    });
+    var isAdmin = selectedUserRole === 'owner' || selectedUserRole === 'admin';
+    if (isAdmin) {
+      api('GET', '/services/health', null, function(err2, health) {
+        lastHealthData = err2 ? {} : (health || {});
+        updateTrafficDots();
+      });
+    } else {
+      updateTrafficDots();
+    }
   });
 }
 
-function showUserAccess() {
+function updateTrafficDots() {
+  var isAdmin = selectedUserRole === 'owner' || selectedUserRole === 'admin';
   var cards = document.querySelectorAll('.card[data-svc-id]');
   for (var i = 0; i < cards.length; i++) {
     var card = cards[i];
@@ -399,39 +365,144 @@ function showUserAccess() {
     tl.style.display = 'flex';
     var dots = tl.querySelectorAll('.tl-dot');
     if (dots.length < 3) continue;
-    var hasGrant = !!selectedUserGrants[svcId];
-    // All dots off, bottom green if granted.
-    dots[0].className = 'tl-dot tl-enabled tl-off';
-    dots[1].className = 'tl-dot tl-public tl-off';
-    dots[2].className = 'tl-dot tl-health ' + (hasGrant ? 'tl-green' : 'tl-off');
-    // Clicking any dot toggles the grant.
-    dots[0].onclick = null;
-    dots[1].onclick = null;
-    (function(sid) {
-      var handler = function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        toggleCardGrant(sid);
-      };
-      dots[0].onclick = handler;
-      dots[1].onclick = handler;
-      dots[2].onclick = handler;
-    })(svcId);
+    if (isAdmin) {
+      var svc = null;
+      for (var j = 0; j < adminData.services.length; j++) {
+        if (adminData.services[j].id === svcId) { svc = adminData.services[j]; break; }
+      }
+      if (!svc) continue;
+      dots[0].className = 'tl-dot tl-enabled ' + (svc.enabled ? 'tl-off' : 'tl-red');
+      dots[1].className = 'tl-dot tl-public ' + (svc.public ? 'tl-yellow' : 'tl-off');
+      var alive = lastHealthData[String(svcId)] === true;
+      dots[2].className = 'tl-dot tl-health ' + (alive ? 'tl-green' : 'tl-off');
+    } else {
+      var hasGrant = !!selectedUserGrants[svcId];
+      dots[0].className = 'tl-dot tl-enabled tl-off';
+      dots[1].className = 'tl-dot tl-public tl-off';
+      dots[2].className = 'tl-dot tl-health ' + (hasGrant ? 'tl-green' : 'tl-off');
+    }
   }
 }
 
-function toggleCardGrant(svcId) {
+function closeDetail() {
+  var existing = document.querySelector('.detail-panel');
+  if (existing) {
+    existing.classList.remove('open');
+    var el = existing;
+    setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 300);
+  }
+  activeDetailSvcId = 0;
+}
+
+function toggleDetail(card) {
+  var svcId = parseInt(card.getAttribute('data-svc-id'));
+  if (activeDetailSvcId === svcId) {
+    closeDetail();
+    return;
+  }
+  var existing = document.querySelector('.detail-panel');
+  if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+  activeDetailSvcId = svcId;
+  api('GET', '/services', null, function(err, services) {
+    if (err) return;
+    adminData.services = services;
+    var isAdmin = selectedUserRole === 'owner' || selectedUserRole === 'admin';
+    if (isAdmin) {
+      api('GET', '/services/health', null, function(err2, health) {
+        lastHealthData = err2 ? {} : (health || {});
+        buildDetail(card, svcId);
+      });
+    } else {
+      buildDetail(card, svcId);
+    }
+  });
+}
+
+function buildDetail(card, svcId) {
+  if (activeDetailSvcId !== svcId) return;
+  var isAdmin = selectedUserRole === 'owner' || selectedUserRole === 'admin';
+  var svc = null;
+  for (var i = 0; i < adminData.services.length; i++) {
+    if (adminData.services[i].id === svcId) { svc = adminData.services[i]; break; }
+  }
+  if (!svc) return;
+  var panel = document.createElement('div');
+  panel.className = 'detail-panel';
+  var inner = document.createElement('div');
+  inner.className = 'detail-inner';
+  // Red button: enabled/disabled.
+  var redBtn = document.createElement('button');
+  redBtn.className = 'detail-btn ' + (svc.enabled ? 'db-off' : 'db-red');
+  if (isAdmin) {
+    (function(sid, c) { redBtn.onclick = function(e) { e.stopPropagation(); e.preventDefault(); api('PUT', '/services/' + sid + '/enabled', {}, function(err) { if (err) { alert(err); return; } refreshDetail(c, sid); }); }; })(svcId, card);
+  } else {
+    redBtn.className += ' db-readonly';
+    redBtn.onclick = function(e) { e.stopPropagation(); e.preventDefault(); };
+  }
+  // Yellow button: public/internal.
+  var yellowBtn = document.createElement('button');
+  yellowBtn.className = 'detail-btn ' + (svc.public ? 'db-yellow' : 'db-off');
+  if (isAdmin) {
+    (function(sid, c) { yellowBtn.onclick = function(e) { e.stopPropagation(); e.preventDefault(); api('PUT', '/services/' + sid + '/public', {}, function(err) { if (err) { alert(err); return; } refreshDetail(c, sid); }); }; })(svcId, card);
+  } else {
+    yellowBtn.className += ' db-readonly';
+    yellowBtn.onclick = function(e) { e.stopPropagation(); e.preventDefault(); };
+  }
+  // Green button: health (admin) or access (user).
+  var greenBtn = document.createElement('button');
+  if (isAdmin) {
+    var alive = lastHealthData[String(svcId)] === true;
+    greenBtn.className = 'detail-btn ' + (alive ? 'db-green' : 'db-off') + ' db-readonly';
+    greenBtn.onclick = function(e) { e.stopPropagation(); e.preventDefault(); };
+  } else {
+    var hasGrant = !!selectedUserGrants[svcId];
+    greenBtn.className = 'detail-btn ' + (hasGrant ? 'db-green' : 'db-off');
+    (function(sid, c) { greenBtn.onclick = function(e) { e.stopPropagation(); e.preventDefault(); toggleCardGrant(sid, c); }; })(svcId, card);
+  }
+  inner.appendChild(redBtn);
+  inner.appendChild(yellowBtn);
+  inner.appendChild(greenBtn);
+  panel.appendChild(inner);
+  card.appendChild(panel);
+  setTimeout(function() { panel.classList.add('open'); }, 10);
+}
+
+function refreshDetail(card, svcId) {
+  api('GET', '/services', null, function(err, services) {
+    if (err) return;
+    adminData.services = services;
+    api('GET', '/services/health', null, function(err2, health) {
+      lastHealthData = err2 ? {} : (health || {});
+      updateTrafficDots();
+      if (activeDetailSvcId === svcId) {
+        var old = card.querySelector('.detail-panel');
+        if (old) old.parentNode.removeChild(old);
+        buildDetail(card, svcId);
+        var p = card.querySelector('.detail-panel');
+        if (p) p.classList.add('open');
+      }
+    });
+  });
+}
+
+function toggleCardGrant(svcId, card) {
   if (!selectedUserId) return;
   var grant = selectedUserGrants[svcId];
   if (grant) {
     api('DELETE', '/grants/' + grant.id, null, function(err) {
       if (err) { alert(err); return; }
       delete selectedUserGrants[svcId];
-      var card = document.querySelector('.card[data-svc-id="' + svcId + '"]');
       if (card && card.target && typeof closeTrackedWindow === 'function') {
         closeTrackedWindow(card.target);
       }
-      showUserAccess();
+      updateTrafficDots();
+      if (activeDetailSvcId === svcId) {
+        var old = card.querySelector('.detail-panel');
+        if (old) old.parentNode.removeChild(old);
+        buildDetail(card, svcId);
+        var p = card.querySelector('.detail-panel');
+        if (p) p.classList.add('open');
+      }
     });
   } else {
     api('POST', '/grants', { user_id: selectedUserId, service_id: svcId, role: 'user' }, function(err) {
@@ -444,7 +515,14 @@ function toggleCardGrant(svcId) {
             selectedUserGrants[grants[i].service_id] = grants[i];
           }
         }
-        showUserAccess();
+        updateTrafficDots();
+        if (activeDetailSvcId === svcId) {
+          var old = card.querySelector('.detail-panel');
+          if (old) old.parentNode.removeChild(old);
+          buildDetail(card, svcId);
+          var p = card.querySelector('.detail-panel');
+          if (p) p.classList.add('open');
+        }
       });
     });
   }
@@ -458,6 +536,7 @@ function deleteSelectedUser() {
     selectedUserId = 0;
     selectedUserRole = '';
     selectedUserGrants = {};
+    closeDetail();
     loadTab('users');
   });
 }
