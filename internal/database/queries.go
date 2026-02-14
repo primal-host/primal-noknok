@@ -10,6 +10,7 @@ type User struct {
 	ID        int64     `json:"id"`
 	DID       string    `json:"did"`
 	Handle    string    `json:"handle"`
+	Username  string    `json:"username"`
 	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -43,7 +44,7 @@ type Grant struct {
 
 func (db *DB) ListUsers(ctx context.Context) ([]User, error) {
 	rows, err := db.Pool.Query(ctx, `
-		SELECT id, did, handle, role, created_at, updated_at
+		SELECT id, did, handle, username, role, created_at, updated_at
 		FROM users ORDER BY id`)
 	if err != nil {
 		return nil, err
@@ -53,7 +54,7 @@ func (db *DB) ListUsers(ctx context.Context) ([]User, error) {
 	var users []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.DID, &u.Handle, &u.Role, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.DID, &u.Handle, &u.Username, &u.Role, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
@@ -64,9 +65,9 @@ func (db *DB) ListUsers(ctx context.Context) ([]User, error) {
 func (db *DB) GetUserByDID(ctx context.Context, did string) (*User, error) {
 	var u User
 	err := db.Pool.QueryRow(ctx, `
-		SELECT id, did, handle, role, created_at, updated_at
+		SELECT id, did, handle, username, role, created_at, updated_at
 		FROM users WHERE did = $1`, did).
-		Scan(&u.ID, &u.DID, &u.Handle, &u.Role, &u.CreatedAt, &u.UpdatedAt)
+		Scan(&u.ID, &u.DID, &u.Handle, &u.Username, &u.Role, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -79,14 +80,14 @@ func (db *DB) GetUserRole(ctx context.Context, did string) (string, error) {
 	return role, err
 }
 
-func (db *DB) CreateUser(ctx context.Context, did, handle, role string) (*User, error) {
+func (db *DB) CreateUser(ctx context.Context, did, handle, role, username string) (*User, error) {
 	var u User
 	err := db.Pool.QueryRow(ctx, `
-		INSERT INTO users (did, handle, role)
-		VALUES ($1, $2, $3)
-		RETURNING id, did, handle, role, created_at, updated_at`,
-		did, handle, role).
-		Scan(&u.ID, &u.DID, &u.Handle, &u.Role, &u.CreatedAt, &u.UpdatedAt)
+		INSERT INTO users (did, handle, role, username)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, did, handle, username, role, created_at, updated_at`,
+		did, handle, role, username).
+		Scan(&u.ID, &u.DID, &u.Handle, &u.Username, &u.Role, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -96,6 +97,20 @@ func (db *DB) CreateUser(ctx context.Context, did, handle, role string) (*User, 
 func (db *DB) UpdateUserRole(ctx context.Context, id int64, role string) error {
 	_, err := db.Pool.Exec(ctx, `
 		UPDATE users SET role = $1, updated_at = now() WHERE id = $2`, role, id)
+	return err
+}
+
+func (db *DB) UpdateUserUsername(ctx context.Context, id int64, username string) error {
+	_, err := db.Pool.Exec(ctx, `
+		UPDATE users SET username = $1, updated_at = now() WHERE id = $2`, username, id)
+	if err != nil {
+		return err
+	}
+	// Propagate to active sessions.
+	_, err = db.Pool.Exec(ctx, `
+		UPDATE sessions SET username = $1
+		WHERE did = (SELECT did FROM users WHERE id = $2)
+		  AND expires_at > now()`, username, id)
 	return err
 }
 
