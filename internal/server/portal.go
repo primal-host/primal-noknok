@@ -78,12 +78,13 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
 			initial = string([]rune(svc.Name)[0])
 		}
 		cards += `
-      <a href="` + svc.URL + `" target="` + svc.Slug + `" rel="noopener" class="card">
+      <a href="` + svc.URL + `" target="` + svc.Slug + `" rel="noopener" class="card" data-svc-id="` + fmt.Sprintf("%d", svc.ID) + `">
         <div class="icon">` + initial + `</div>
         <div class="info">
           <h3>` + svc.Name + `</h3>
           <p>` + svc.Description + `</p>
         </div>
+        <div class="grant-dot" style="display:none"></div>
       </a>`
 	}
 
@@ -256,8 +257,23 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
     text-decoration: none;
     color: inherit;
     transition: background 0.15s, transform 0.1s;
+    position: relative;
   }
   .card:hover { background: #334155; transform: translateY(-2px); }
+  .grant-dot {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .grant-dot.granted { background: #22c55e; }
+  .grant-dot.granted:hover { background: #16a34a; }
+  .grant-dot.revoked { background: #475569; }
+  .grant-dot.revoked:hover { background: #64748b; }
   .icon {
     width: 48px;
     height: 48px;

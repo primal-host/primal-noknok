@@ -196,10 +196,11 @@ function esc(s) {
 }
 
 function renderUsers(el) {
-  var html = '<table class="admin-tbl"><thead><tr><th>Handle</th><th>Username</th><th>Role</th><th>DID</th><th></th></tr></thead><tbody>';
+  var html = '<table class="admin-tbl"><thead><tr><th style="width:30px"></th><th>Handle</th><th>Username</th><th>Role</th><th>DID</th></tr></thead><tbody>';
   for (var i = 0; i < adminData.users.length; i++) {
     var u = adminData.users[i];
     var canChangeRole = ROLE === 'owner';
+    var radio = '<input type="radio" name="sel-user" value="' + u.id + '" style="cursor:pointer;accent-color:#3b82f6" onchange="selectUser(' + u.id + ')">';
     var usernameCell = '<input class="admin-input" style="width:90px;font-size:0.75rem" value="' + esc(u.username || '') + '" onchange="updateUsername(' + u.id + ',this.value)">';
     var roleCell = canChangeRole
       ? '<select class="admin-select" onchange="updateRole(' + u.id + ',this.value)">' +
@@ -207,17 +208,38 @@ function renderUsers(el) {
         '<option value="admin"' + (u.role==='admin'?' selected':'') + '>Admin</option>' +
         '<option value="owner"' + (u.role==='owner'?' selected':'') + '>Owner</option></select>'
       : esc(u.role);
-    var del = '<button class="admin-btn-danger" onclick="deleteUser(' + u.id + ')">Delete</button>';
-    html += '<tr><td>' + esc(u.handle || '(no handle)') + '</td><td>' + usernameCell + '</td><td>' + roleCell + '</td><td style="font-size:0.75rem;color:#64748b;max-width:200px;overflow:hidden;text-overflow:ellipsis">' + esc(u.did) + '</td><td>' + del + '</td></tr>';
+    html += '<tr><td>' + radio + '</td><td>' + esc(u.handle || '(no handle)') + '</td><td>' + usernameCell + '</td><td>' + roleCell + '</td><td style="font-size:0.75rem;color:#64748b;max-width:200px;overflow:hidden;text-overflow:ellipsis">' + esc(u.did) + '</td></tr>';
   }
   html += '</tbody></table>';
   html += '<div class="admin-form">' +
     '<input class="admin-input" id="add-handle" placeholder="handle" style="flex:1;min-width:150px" oninput="checkAddUser()">' +
     '<input class="admin-input" id="add-username" placeholder="username" style="width:90px" oninput="checkAddUser()">' +
     '<select class="admin-select" id="add-role" onchange="checkAddUser()"><option value="" disabled selected>role</option><option value="user">User</option>` + ownerOnly + `</select>' +
-    '<button class="admin-btn" id="add-user-btn" onclick="addUser()" disabled style="opacity:0.4;cursor:default">Add</button></div>';
+    '<button class="admin-btn" id="add-user-btn" onclick="addUser()" disabled style="opacity:0.4;cursor:default">Add</button>' +
+    '<button class="admin-btn-danger" id="del-user-btn" onclick="deleteSelectedUser()" disabled style="opacity:0.4;cursor:default;padding:0.375rem 0.75rem;font-size:0.8125rem">Delete</button></div>';
   html += '<div id="users-msg"></div>';
   el.innerHTML = html;
+  if (selectedUserId) {
+    var found = false;
+    var radios = el.querySelectorAll('input[name="sel-user"]');
+    for (var j = 0; j < radios.length; j++) {
+      if (parseInt(radios[j].value) === selectedUserId) {
+        radios[j].checked = true;
+        found = true;
+        break;
+      }
+    }
+    if (found) {
+      var btn = document.getElementById('del-user-btn');
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+    } else {
+      selectedUserId = 0;
+      selectedUserGrants = {};
+      updateGrantDots();
+    }
+  }
 }
 
 function checkAddUser() {
@@ -268,10 +290,91 @@ function updateRole(id, role) {
   });
 }
 
-function deleteUser(id) {
+var selectedUserId = 0;
+var selectedUserGrants = {};
+
+function selectUser(userId) {
+  selectedUserId = userId;
+  var btn = document.getElementById('del-user-btn');
+  if (btn) {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+  }
+  api('GET', '/grants', null, function(err, grants) {
+    if (err) return;
+    selectedUserGrants = {};
+    for (var i = 0; i < grants.length; i++) {
+      if (grants[i].user_id === userId) {
+        selectedUserGrants[grants[i].service_id] = grants[i];
+      }
+    }
+    updateGrantDots();
+  });
+}
+
+function updateGrantDots() {
+  var cards = document.querySelectorAll('.card[data-svc-id]');
+  for (var i = 0; i < cards.length; i++) {
+    var card = cards[i];
+    var svcId = parseInt(card.getAttribute('data-svc-id'));
+    var dot = card.querySelector('.grant-dot');
+    if (!dot) continue;
+    if (!selectedUserId) {
+      dot.style.display = 'none';
+      dot.onclick = null;
+      continue;
+    }
+    dot.style.display = 'block';
+    if (selectedUserGrants[svcId]) {
+      dot.className = 'grant-dot granted';
+    } else {
+      dot.className = 'grant-dot revoked';
+    }
+    (function(sid) {
+      dot.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleCardGrant(sid);
+      };
+    })(svcId);
+  }
+}
+
+function toggleCardGrant(svcId) {
+  if (!selectedUserId) return;
+  var grant = selectedUserGrants[svcId];
+  if (grant) {
+    api('DELETE', '/grants/' + grant.id, null, function(err) {
+      if (err) { alert(err); return; }
+      delete selectedUserGrants[svcId];
+      updateGrantDots();
+    });
+  } else {
+    api('POST', '/grants', { user_id: selectedUserId, service_id: svcId, role: 'user' }, function(err) {
+      if (err) { alert(err); return; }
+      api('GET', '/grants', null, function(err2, grants) {
+        if (err2) return;
+        selectedUserGrants = {};
+        for (var i = 0; i < grants.length; i++) {
+          if (grants[i].user_id === selectedUserId) {
+            selectedUserGrants[grants[i].service_id] = grants[i];
+          }
+        }
+        updateGrantDots();
+      });
+    });
+  }
+}
+
+function deleteSelectedUser() {
+  if (!selectedUserId) return;
   if (!confirm('Delete this user?')) return;
-  api('DELETE', '/users/' + id, null, function(err) {
+  api('DELETE', '/users/' + selectedUserId, null, function(err) {
     if (err) { alert(err); return; }
+    selectedUserId = 0;
+    selectedUserGrants = {};
+    updateGrantDots();
     loadTab('users');
   });
 }
