@@ -150,7 +150,10 @@ func disabledHTML(serviceName string) string {
     padding: 1.25rem;
     position: relative;
     min-width: 280px;
+    cursor: pointer;
+    transition: background 0.15s;
   }
+  .card:hover { background: #334155; }
   .icon {
     width: 48px;
     height: 48px;
@@ -183,36 +186,16 @@ func disabledHTML(serviceName string) string {
     border-radius: 4px;
     background: #ef4444;
   }
-  .close-x {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    color: #64748b;
-    font-size: 0.875rem;
-    text-decoration: none;
-    width: 1.75rem;
-    height: 1.75rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1.5px solid #475569;
-    border-radius: 50%;
-    cursor: pointer;
-    background: none;
-    transition: color 0.15s, border-color 0.15s, background 0.15s;
-  }
-  .close-x:hover { color: #fff; border-color: #f97316; background: #f97316; }
 </style>
 </head>
 <body>
-<div class="card">
+<div class="card" onclick="goBack()">
   <div class="icon">` + initial + `</div>
   <div class="info">
     <h3>` + serviceName + `</h3>
     <p>Disabled by administrator</p>
   </div>
   <div class="disabled-dot"></div>
-  <button class="close-x" onclick="goBack()">&times;</button>
 </div>
 <script>
 function goBack() {
