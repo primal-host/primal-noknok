@@ -189,7 +189,7 @@ func loginHTML(redirect, errMsg string, hasSession bool) string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>noknok — Sign In</title>
+<title>nokNok — Sign In</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -294,7 +294,7 @@ func loginHTML(redirect, errMsg string, hasSession bool) string {
 <body>
 <div class="card">
   ` + closeBtn + `
-  <h1>noknok</h1>
+  <h1>nokNok</h1>
   <p class="subtitle">Sign in with your Bluesky account</p>
   ` + errorBlock + `
   <form method="POST" action="/login">
