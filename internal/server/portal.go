@@ -53,7 +53,11 @@ func (s *Server) handlePortal(c echo.Context) error {
 		group = []session.Session{*sess}
 	}
 
-	return c.HTML(http.StatusOK, portalHTML(sess, group, svcs, isAdmin, user.Role))
+	// Check if ?admin is in the URL (works with ?admin, ?admin=, ?admin=1).
+	_, adminOpen := c.QueryParams()["admin"]
+	adminOpen = adminOpen && isAdmin
+
+	return c.HTML(http.StatusOK, portalHTML(sess, group, svcs, isAdmin, user.Role, adminOpen))
 }
 
 type identityInfo struct {
@@ -62,7 +66,7 @@ type identityInfo struct {
 	Active bool
 }
 
-func portalHTML(active *session.Session, group []session.Session, svcs []database.Service, isAdmin bool, role string) string {
+func portalHTML(active *session.Session, group []session.Session, svcs []database.Service, isAdmin bool, role string, adminOpen bool) string {
 	cards := ""
 	for _, svc := range svcs {
 		initial := "?"
@@ -121,7 +125,7 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
 
 	adminHTML := ""
 	if isAdmin {
-		adminHTML = adminPanelHTML(role)
+		adminHTML = adminPanelHTML(role, adminOpen)
 	}
 
 	return `<!DOCTYPE html>
@@ -307,9 +311,9 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
     </div>
   </div>
 </div>
+` + adminHTML + `
 <div class="grid">` + cards + `
 </div>
-` + adminHTML + `
 <script>
 function toggleDropdown(e) {
   e.stopPropagation();
@@ -322,7 +326,6 @@ document.addEventListener('click', function(e) {
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') document.getElementById('identity-menu').classList.remove('open');
 });
-if (window.location.search === '?admin' && typeof openAdmin === 'function') openAdmin();
 </script>
 </body>
 </html>`

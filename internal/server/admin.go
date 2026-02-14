@@ -1,6 +1,6 @@
 package server
 
-func adminPanelHTML(role string) string {
+func adminPanelHTML(role string, open bool) string {
 	ownerOnly := ""
 	if role == "owner" {
 		ownerOnly = `
@@ -8,31 +8,85 @@ func adminPanelHTML(role string) string {
         <option value="owner">Owner</option>`
 	}
 
+	display := "none"
+	if open {
+		display = "block"
+	}
+
+	autoLoad := ""
+	if open {
+		autoLoad = `loadTab('users');`
+	}
+
 	return `
-<!-- Admin Modal -->
-<div id="admin-overlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center">
-<div style="background:#1e293b;border-radius:12px;width:100%;max-width:720px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.4)">
-  <div style="display:flex;justify-content:space-between;align-items:center;padding:1.25rem 1.5rem;border-bottom:1px solid #334155">
-    <h2 style="font-size:1.125rem;font-weight:600;color:#f8fafc;margin:0">Admin</h2>
-    <button onclick="closeAdmin()" style="background:none;border:none;color:#94a3b8;font-size:1.25rem;cursor:pointer;padding:0.25rem">&times;</button>
+<!-- Admin Panel -->
+<div id="admin-panel" class="admin-card" style="display:` + display + `">
+  <div class="admin-header">
+    <h2>Admin</h2>
+    <a href="/" class="admin-close">&times;</a>
   </div>
-  <div style="display:flex;border-bottom:1px solid #334155">
-    <button class="admin-tab active" data-tab="users" onclick="switchTab('users')">Users</button>
-    <button class="admin-tab" data-tab="services" onclick="switchTab('services')">Services</button>
-    <button class="admin-tab" data-tab="access" onclick="switchTab('access')">Access</button>
+  <div class="admin-tabs">
+    <a href="/?admin&tab=users" class="admin-tab active" data-tab="users">Users</a>
+    <a href="/?admin&tab=services" class="admin-tab" data-tab="services">Services</a>
+    <a href="/?admin&tab=access" class="admin-tab" data-tab="access">Access</a>
   </div>
-  <div id="admin-content" style="padding:1.25rem 1.5rem;overflow-y:auto;flex:1">
+  <div id="admin-content" class="admin-body">
   </div>
-</div>
 </div>
 
 <style>
-.admin-tab {
-  background:none;border:none;color:#94a3b8;padding:0.75rem 1.25rem;font-size:0.875rem;cursor:pointer;
-  border-bottom:2px solid transparent;transition:color 0.15s,border-color 0.15s;
+.admin-card {
+  background: #1e293b;
+  border-radius: 12px;
+  max-width: 800px;
+  margin: 0 auto 1.5rem;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  overflow: hidden;
 }
-.admin-tab:hover { color:#e2e8f0; }
-.admin-tab.active { color:#3b82f6;border-bottom-color:#3b82f6; }
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #334155;
+}
+.admin-header h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #f8fafc;
+  margin: 0;
+}
+.admin-close {
+  color: #94a3b8;
+  font-size: 1.5rem;
+  text-decoration: none;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+.admin-close:hover { color: #f8fafc; background: #334155; }
+.admin-tabs {
+  display: flex;
+  border-bottom: 1px solid #334155;
+}
+.admin-tab {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+  text-decoration: none;
+}
+.admin-tab:hover { color: #e2e8f0; }
+.admin-tab.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+.admin-body {
+  padding: 1.25rem 1.5rem;
+  overflow-x: auto;
+}
 .admin-tbl { width:100%;border-collapse:collapse;font-size:0.8125rem; }
 .admin-tbl th { text-align:left;color:#94a3b8;font-weight:500;padding:0.5rem 0.75rem;border-bottom:1px solid #334155; }
 .admin-tbl td { padding:0.5rem 0.75rem;color:#e2e8f0;border-bottom:1px solid #1e293b; }
@@ -68,35 +122,31 @@ const ROLE = '` + role + `';
 let currentTab = 'users';
 let adminData = { users: [], services: [], grants: [] };
 
-function openAdmin() {
-  document.getElementById('admin-overlay').style.display = 'flex';
-  loadTab('users');
-}
-function closeAdmin() {
-  document.getElementById('admin-overlay').style.display = 'none';
-}
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAdmin(); });
-
-function switchTab(tab) {
-  currentTab = tab;
-  document.querySelectorAll('.admin-tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.tab === tab);
+// Tab links: prevent navigation, switch tab in-place.
+document.querySelectorAll('.admin-tab').forEach(function(t) {
+  t.addEventListener('click', function(e) {
+    e.preventDefault();
+    var tab = t.getAttribute('data-tab');
+    currentTab = tab;
+    document.querySelectorAll('.admin-tab').forEach(function(x) {
+      x.classList.toggle('active', x.getAttribute('data-tab') === tab);
+    });
+    loadTab(tab);
   });
-  loadTab(tab);
-}
+});
 
 async function api(method, path, body) {
-  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
   if (body) opts.body = JSON.stringify(body);
-  const r = await fetch('/admin/api' + path, opts);
+  var r = await fetch('/admin/api' + path, opts);
   if (r.status === 204) return null;
-  const data = await r.json();
+  var data = await r.json();
   if (!r.ok) throw new Error(data.error || 'request failed');
   return data;
 }
 
 async function loadTab(tab) {
-  const el = document.getElementById('admin-content');
+  var el = document.getElementById('admin-content');
   try {
     if (tab === 'users') {
       adminData.users = await api('GET', '/users');
@@ -116,23 +166,24 @@ async function loadTab(tab) {
 }
 
 function esc(s) {
-  const d = document.createElement('div');
+  var d = document.createElement('div');
   d.textContent = s || '';
   return d.innerHTML;
 }
 
 function renderUsers(el) {
-  let html = '<table class="admin-tbl"><thead><tr><th>Handle</th><th>Username</th><th>Role</th><th>DID</th><th></th></tr></thead><tbody>';
-  for (const u of adminData.users) {
-    const canChangeRole = ROLE === 'owner';
-    const usernameCell = '<input class="admin-input" style="width:90px;font-size:0.75rem" value="' + esc(u.username || '') + '" onchange="updateUsername(' + u.id + ',this.value)">';
-    const roleCell = canChangeRole
+  var html = '<table class="admin-tbl"><thead><tr><th>Handle</th><th>Username</th><th>Role</th><th>DID</th><th></th></tr></thead><tbody>';
+  for (var i = 0; i < adminData.users.length; i++) {
+    var u = adminData.users[i];
+    var canChangeRole = ROLE === 'owner';
+    var usernameCell = '<input class="admin-input" style="width:90px;font-size:0.75rem" value="' + esc(u.username || '') + '" onchange="updateUsername(' + u.id + ',this.value)">';
+    var roleCell = canChangeRole
       ? '<select class="admin-select" onchange="updateRole(' + u.id + ',this.value)">' +
         '<option value="user"' + (u.role==='user'?' selected':'') + '>User</option>' +
         '<option value="admin"' + (u.role==='admin'?' selected':'') + '>Admin</option>' +
         '<option value="owner"' + (u.role==='owner'?' selected':'') + '>Owner</option></select>'
       : esc(u.role);
-    const del = '<button class="admin-btn-danger" onclick="deleteUser(' + u.id + ')">Delete</button>';
+    var del = '<button class="admin-btn-danger" onclick="deleteUser(' + u.id + ')">Delete</button>';
     html += '<tr><td>' + esc(u.handle || '(no handle)') + '</td><td>' + usernameCell + '</td><td>' + roleCell + '</td><td style="font-size:0.75rem;color:#64748b;max-width:200px;overflow:hidden;text-overflow:ellipsis">' + esc(u.did) + '</td><td>' + del + '</td></tr>';
   }
   html += '</tbody></table>';
@@ -146,13 +197,13 @@ function renderUsers(el) {
 }
 
 async function addUser() {
-  const handle = document.getElementById('add-handle').value.trim();
-  const username = document.getElementById('add-username').value.trim();
-  const role = document.getElementById('add-role').value;
-  const msg = document.getElementById('users-msg');
+  var handle = document.getElementById('add-handle').value.trim();
+  var username = document.getElementById('add-username').value.trim();
+  var role = document.getElementById('add-role').value;
+  var msg = document.getElementById('users-msg');
   if (!handle) return;
   try {
-    await api('POST', '/users', { handle, role, username });
+    await api('POST', '/users', { handle: handle, role: role, username: username });
     document.getElementById('add-handle').value = '';
     document.getElementById('add-username').value = '';
     msg.className = 'admin-msg admin-msg-ok'; msg.textContent = 'User added';
@@ -163,11 +214,11 @@ async function addUser() {
 }
 
 async function updateUsername(id, username) {
-  const msg = document.getElementById('users-msg');
+  var msg = document.getElementById('users-msg');
   try {
-    await api('PUT', '/users/' + id + '/username', { username });
+    await api('PUT', '/users/' + id + '/username', { username: username });
     msg.className = 'admin-msg admin-msg-ok'; msg.textContent = 'Username updated';
-    setTimeout(() => { msg.className = ''; msg.textContent = ''; }, 1500);
+    setTimeout(function() { msg.className = ''; msg.textContent = ''; }, 1500);
   } catch (e) {
     msg.className = 'admin-msg admin-msg-err'; msg.textContent = e.message;
     loadTab('users');
@@ -176,7 +227,7 @@ async function updateUsername(id, username) {
 
 async function updateRole(id, role) {
   try {
-    await api('PUT', '/users/' + id + '/role', { role });
+    await api('PUT', '/users/' + id + '/role', { role: role });
   } catch (e) {
     alert(e.message);
     loadTab('users');
@@ -192,8 +243,9 @@ async function deleteUser(id) {
 }
 
 function renderServices(el) {
-  let html = '<table class="admin-tbl"><thead><tr><th>Name</th><th>Slug</th><th>URL</th><th>Admin Role</th><th></th></tr></thead><tbody>';
-  for (const s of adminData.services) {
+  var html = '<table class="admin-tbl"><thead><tr><th>Name</th><th>Slug</th><th>URL</th><th>Admin Role</th><th></th></tr></thead><tbody>';
+  for (var i = 0; i < adminData.services.length; i++) {
+    var s = adminData.services[i];
     html += '<tr><td>' + esc(s.name) + '</td><td style="color:#64748b">' + esc(s.slug) + '</td><td style="font-size:0.75rem;color:#64748b">' + esc(s.url) + '</td>' +
       '<td><input class="admin-input" style="width:70px;font-size:0.75rem" value="' + esc(s.admin_role) + '" onchange="updateServiceAdminRole(' + s.id + ',this.value)"></td>' +
       '<td><button class="admin-btn-danger" onclick="deleteService(' + s.id + ')">Delete</button></td></tr>';
@@ -211,15 +263,15 @@ function renderServices(el) {
 }
 
 async function addService() {
-  const name = document.getElementById('svc-name').value.trim();
-  const slug = document.getElementById('svc-slug').value.trim();
-  const url = document.getElementById('svc-url').value.trim();
-  const desc = document.getElementById('svc-desc').value.trim();
-  const adminRole = document.getElementById('svc-admin-role').value.trim() || 'admin';
-  const msg = document.getElementById('services-msg');
+  var name = document.getElementById('svc-name').value.trim();
+  var slug = document.getElementById('svc-slug').value.trim();
+  var url = document.getElementById('svc-url').value.trim();
+  var desc = document.getElementById('svc-desc').value.trim();
+  var adminRole = document.getElementById('svc-admin-role').value.trim() || 'admin';
+  var msg = document.getElementById('services-msg');
   if (!name || !slug || !url) { msg.className = 'admin-msg admin-msg-err'; msg.textContent = 'Name, slug, and URL required'; return; }
   try {
-    await api('POST', '/services', { name, slug, url, description: desc, icon_url: '', admin_role: adminRole });
+    await api('POST', '/services', { name: name, slug: slug, url: url, description: desc, icon_url: '', admin_role: adminRole });
     document.getElementById('svc-name').value = '';
     document.getElementById('svc-slug').value = '';
     document.getElementById('svc-url').value = '';
@@ -233,14 +285,17 @@ async function addService() {
 }
 
 async function updateServiceAdminRole(id, adminRole) {
-  const svc = adminData.services.find(s => s.id === id);
+  var svc = null;
+  for (var i = 0; i < adminData.services.length; i++) {
+    if (adminData.services[i].id === id) { svc = adminData.services[i]; break; }
+  }
   if (!svc) return;
-  const msg = document.getElementById('services-msg');
+  var msg = document.getElementById('services-msg');
   try {
     await api('PUT', '/services/' + id, { name: svc.name, description: svc.description, url: svc.url, icon_url: svc.icon_url, admin_role: adminRole });
     svc.admin_role = adminRole;
     msg.className = 'admin-msg admin-msg-ok'; msg.textContent = 'Admin role updated';
-    setTimeout(() => { msg.className = ''; msg.textContent = ''; }, 1500);
+    setTimeout(function() { msg.className = ''; msg.textContent = ''; }, 1500);
   } catch (e) {
     msg.className = 'admin-msg admin-msg-err'; msg.textContent = e.message;
   }
@@ -255,25 +310,28 @@ async function deleteService(id) {
 }
 
 function renderAccess(el) {
-  const users = adminData.users;
-  const services = adminData.services;
-  const grantMap = {};
-  for (const g of adminData.grants) {
+  var users = adminData.users;
+  var services = adminData.services;
+  var grantMap = {};
+  for (var i = 0; i < adminData.grants.length; i++) {
+    var g = adminData.grants[i];
     grantMap[g.user_id + ':' + g.service_id] = g;
   }
 
-  let html = '<table class="admin-tbl"><thead><tr><th>User</th>';
-  for (const s of services) {
-    html += '<th style="text-align:center;font-size:0.75rem">' + esc(s.name) + '</th>';
+  var html = '<table class="admin-tbl"><thead><tr><th>User</th>';
+  for (var i = 0; i < services.length; i++) {
+    html += '<th style="text-align:center;font-size:0.75rem">' + esc(services[i].name) + '</th>';
   }
   html += '</tr></thead><tbody>';
-  for (const u of users) {
+  for (var i = 0; i < users.length; i++) {
+    var u = users[i];
     html += '<tr><td>' + esc(u.handle || u.did) + '</td>';
-    for (const s of services) {
-      const key = u.id + ':' + s.id;
-      const grant = grantMap[key];
-      const checked = grant ? ' checked' : '';
-      const role = grant ? grant.role : 'user';
+    for (var j = 0; j < services.length; j++) {
+      var s = services[j];
+      var key = u.id + ':' + s.id;
+      var grant = grantMap[key];
+      var checked = grant ? ' checked' : '';
+      var role = grant ? grant.role : 'user';
       html += '<td style="text-align:center">' +
         '<input type="checkbox" class="access-check"' + checked +
         ' onchange="toggleGrant(' + u.id + ',' + s.id + ',this.checked)">' +
@@ -290,13 +348,16 @@ function renderAccess(el) {
 }
 
 async function toggleGrant(userId, serviceId, checked) {
-  const msg = document.getElementById('access-msg');
+  var msg = document.getElementById('access-msg');
   try {
     if (checked) {
       await api('POST', '/grants', { user_id: userId, service_id: serviceId, role: 'user' });
     } else {
-      const key = userId + ':' + serviceId;
-      const grant = adminData.grants.find(g => g.user_id === userId && g.service_id === serviceId);
+      var grant = null;
+      for (var i = 0; i < adminData.grants.length; i++) {
+        var g = adminData.grants[i];
+        if (g.user_id === userId && g.service_id === serviceId) { grant = g; break; }
+      }
       if (grant) {
         await api('DELETE', '/grants/' + grant.id);
       }
@@ -311,15 +372,17 @@ async function toggleGrant(userId, serviceId, checked) {
 }
 
 async function updateGrantRole(userId, serviceId, role) {
-  const msg = document.getElementById('access-msg');
+  var msg = document.getElementById('access-msg');
   try {
     await api('POST', '/grants', { user_id: userId, service_id: serviceId, role: role });
     adminData.grants = await api('GET', '/grants');
     msg.className = 'admin-msg admin-msg-ok'; msg.textContent = 'Role updated';
-    setTimeout(() => { msg.className = ''; msg.textContent = ''; }, 1500);
+    setTimeout(function() { msg.className = ''; msg.textContent = ''; }, 1500);
   } catch (e) {
     msg.className = 'admin-msg admin-msg-err'; msg.textContent = e.message;
   }
 }
+
+` + autoLoad + `
 </script>`
 }
