@@ -37,7 +37,7 @@ func main() {
 
 	// Seed owner user.
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	if err := db.SeedOwner(ctx, cfg.OwnerDID); err != nil {
+	if err := db.SeedOwner(ctx, cfg.OwnerDID, cfg.OwnerUsername); err != nil {
 		cancel()
 		slog.Error("failed to seed owner", "error", err)
 		os.Exit(1)
