@@ -301,12 +301,6 @@ func loginHTML(redirect, errMsg string, hasSession bool, svcs []database.Service
     transition: background 0.15s;
   }
   button:hover { background: #2563eb; }
-  .login-footer {
-    text-align: center;
-    margin-top: 0.75rem;
-    font-size: 0.75rem;
-    color: #475569;
-  }
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -367,7 +361,6 @@ func loginHTML(redirect, errMsg string, hasSession bool, svcs []database.Service
     <input type="text" id="handle" name="handle" placeholder="you.bsky.social" autocomplete="username" autofocus required>
     <button type="submit">Sign in with Bluesky</button>
   </form>
-  <p class="login-footer">You will be redirected to authorize at your provider</p>
 </div>
 ` + serviceSection + `
 <script>
