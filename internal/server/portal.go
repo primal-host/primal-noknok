@@ -115,7 +115,7 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
 		adminItem = `
       <div class="dd-sep"></div>
       <div class="dd-section">
-        <button class="dd-item dd-btn dd-admin" onclick="document.getElementById('identity-menu').classList.remove('open');openAdmin()">Admin</button>
+        <a href="#" class="dd-add" onclick="event.preventDefault();document.getElementById('identity-menu').classList.remove('open');openAdmin()">Admin</a>
       </div>`
 	}
 
