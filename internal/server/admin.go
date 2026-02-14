@@ -214,7 +214,7 @@ function renderUsers(el) {
   html += '<div class="admin-form">' +
     '<input class="admin-input" id="add-handle" placeholder="handle" style="flex:1;min-width:150px" oninput="checkAddUser()">' +
     '<input class="admin-input" id="add-username" placeholder="username" style="width:90px" oninput="checkAddUser()">' +
-    '<select class="admin-select" id="add-role" onchange="checkAddUser()"><option value="" disabled selected>Role</option><option value="user">User</option>` + ownerOnly + `</select>' +
+    '<select class="admin-select" id="add-role" onchange="checkAddUser()"><option value="" disabled selected>role</option><option value="user">User</option>` + ownerOnly + `</select>' +
     '<button class="admin-btn" id="add-user-btn" onclick="addUser()" disabled style="opacity:0.4;cursor:default">Add</button></div>';
   html += '<div id="users-msg"></div>';
   el.innerHTML = html;
@@ -286,14 +286,30 @@ function renderServices(el) {
   }
   html += '</tbody></table>';
   html += '<div class="admin-form">' +
-    '<input class="admin-input" id="svc-name" placeholder="Name" style="width:100px">' +
-    '<input class="admin-input" id="svc-slug" placeholder="slug" style="width:80px">' +
-    '<input class="admin-input" id="svc-url" placeholder="https://..." style="flex:1;min-width:130px">' +
+    '<input class="admin-input" id="svc-name" placeholder="Name" style="width:100px" oninput="checkAddService()">' +
+    '<input class="admin-input" id="svc-slug" placeholder="slug" style="width:80px" oninput="checkAddService()">' +
+    '<input class="admin-input" id="svc-url" placeholder="https://..." style="flex:1;min-width:130px" oninput="checkAddService()">' +
     '<input class="admin-input" id="svc-desc" placeholder="Description" style="width:110px">' +
     '<input class="admin-input" id="svc-admin-role" placeholder="admin" style="width:70px">' +
-    '<button class="admin-btn" onclick="addService()">Add</button></div>';
+    '<button class="admin-btn" id="add-svc-btn" onclick="addService()" disabled style="opacity:0.4;cursor:default">Add</button></div>';
   html += '<div id="services-msg"></div>';
   el.innerHTML = html;
+}
+
+function checkAddService() {
+  var n = document.getElementById('svc-name').value.trim();
+  var s = document.getElementById('svc-slug').value.trim();
+  var u = document.getElementById('svc-url').value.trim();
+  var btn = document.getElementById('add-svc-btn');
+  if (n && s && u) {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+  } else {
+    btn.disabled = true;
+    btn.style.opacity = '0.4';
+    btn.style.cursor = 'default';
+  }
 }
 
 function addService() {
@@ -311,6 +327,7 @@ function addService() {
     document.getElementById('svc-url').value = '';
     document.getElementById('svc-desc').value = '';
     document.getElementById('svc-admin-role').value = '';
+    checkAddService();
     msg.className = 'admin-msg admin-msg-ok'; msg.textContent = 'Service added';
     loadTab('services');
   });
