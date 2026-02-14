@@ -3,9 +3,7 @@ package server
 func adminPanelHTML(role string, open bool, activeTab string) string {
 	ownerOnly := ""
 	if role == "owner" {
-		ownerOnly = `
-        <option value="admin">Admin</option>
-        <option value="owner">Owner</option>`
+		ownerOnly = `<option value="admin">Admin</option><option value="owner">Owner</option>`
 	}
 
 	display := "none"
