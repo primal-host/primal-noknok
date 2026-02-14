@@ -215,17 +215,22 @@ func loginHTML(redirect, errMsg string, hasSession bool) string {
     top: 0.75rem;
     right: 0.75rem;
     background: none;
-    border: none;
+    border: 1.5px solid #475569;
     color: #64748b;
-    font-size: 1.25rem;
+    font-size: 0.875rem;
     cursor: pointer;
-    padding: 0.25rem 0.5rem;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
     line-height: 1;
-    border-radius: 4px;
-    transition: color 0.15s, background 0.15s;
-    width: auto;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    text-decoration: none;
   }
-  .close-btn:hover { color: #e2e8f0; background: #334155; }
+  .close-btn:hover { color: #fff; border-color: #f97316; background: #f97316; }
   h1 {
     font-size: 1.5rem;
     font-weight: 600;
