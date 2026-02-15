@@ -386,7 +386,6 @@ func portalHTML(active *session.Session, group []session.Session, svcs []databas
 </head>
 <body>
 <div class="header">
-  <h1>nokNok</h1>
   <div class="user">
     <button class="dd-trigger" onclick="toggleDropdown(event)">
       ` + active.Handle + ` <span class="dd-arrow">&#9660;</span>
