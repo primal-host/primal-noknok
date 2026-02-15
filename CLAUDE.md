@@ -37,10 +37,11 @@ go vet ./...
 
 Postgres on `infra-postgres:5432` (host port 5433), database `noknok`, user `dba_noknok`.
 
-Tables: `sessions`, `users`, `services`, `grants`, `oauth_requests`, `oauth_sessions`.
+Tables: `sessions`, `users`, `user_identities`, `services`, `grants`, `oauth_requests`, `oauth_sessions`.
 
-- `sessions` — `group_id` column links multiple identities per browser; `token` is 64-char hex; sessions expire per `SESSION_TTL`
-- `users` — role column: `owner`, `admin`, `user`
+- `sessions` — `group_id` column links multiple identities per browser; `user_id` links to users table; `did`/`handle` for identity display; `token` is 64-char hex; sessions expire per `SESSION_TTL`
+- `users` — role column: `owner`, `admin`, `user`; no `did`/`handle` columns (moved to `user_identities`)
+- `user_identities` — links AT Protocol DIDs to users; columns: `user_id`, `did` (unique), `handle`, `is_primary`; multiple identities per user; primary identity used for display
 - `services` — seeded from `services.json` on startup (ON CONFLICT slug DO UPDATE all fields); `admin_role` column (default 'admin') sets role for owners/admins; `enabled` (bool, default true) and `public` (bool, default false) columns for service status
 - `grants` — user×service access matrix (CASCADE on delete); `role` column (free-text, default 'user') for per-service role granularity
 
@@ -196,6 +197,9 @@ All under `/admin/api`, protected by `requireAdmin` middleware:
 | PUT | /users/:id/role | Change user role |
 | PUT | /users/:id/username | Change username |
 | DELETE | /users/:id | Delete user |
+| GET | /users/:id/identities | List user's linked identities |
+| POST | /users/:id/identities | Add identity (resolve handle → DID) |
+| DELETE | /users/:id/identities/:identityId | Remove identity (not primary) |
 | GET | /services | List all services |
 | POST | /services | Create service |
 | PUT | /services/:id | Update service (name, url, admin_role) |
