@@ -60,7 +60,7 @@ services:
 
 secrets:
   db_password:
-    file: ${HOME}/apps/infra/postgres/secrets/dba_noknok_password.txt
+    file: ${HOME}/apps/primal-host/infra/postgres/secrets/dba_noknok_password.txt
   oauth_key:
     file: ./secrets/oauth_key.txt
 
