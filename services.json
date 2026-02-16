@@ -70,5 +70,13 @@
     "url": "https://pds.primal.host/dashboard",
     "icon_url": "",
     "admin_role": "admin"
+  },
+  {
+    "slug": "kerai-editor",
+    "name": "Kerai Editor",
+    "description": "AST-based code editor",
+    "url": "https://kerai.primal.host",
+    "icon_url": "",
+    "admin_role": "admin"
   }
 ]
