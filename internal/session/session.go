@@ -254,6 +254,34 @@ func (m *Manager) StopCleanup() {
 	close(m.stopCleanup)
 }
 
+// MakeCookieForDomain creates a session cookie for a specific domain.
+func (m *Manager) MakeCookieForDomain(token string, expiresAt time.Time, domain string) *http.Cookie {
+	return &http.Cookie{
+		Name:     cookieName,
+		Value:    token,
+		Path:     "/",
+		Domain:   domain,
+		Expires:  expiresAt,
+		HttpOnly: true,
+		Secure:   m.secure,
+		SameSite: http.SameSiteLaxMode,
+	}
+}
+
+// ClearCookieForDomain creates a cookie that clears the session for a specific domain.
+func (m *Manager) ClearCookieForDomain(domain string) *http.Cookie {
+	return &http.Cookie{
+		Name:     cookieName,
+		Value:    "",
+		Path:     "/",
+		Domain:   domain,
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   m.secure,
+		SameSite: http.SameSiteLaxMode,
+	}
+}
+
 func (m *Manager) makeCookie(token string, expiresAt time.Time) *http.Cookie {
 	return &http.Cookie{
 		Name:     cookieName,

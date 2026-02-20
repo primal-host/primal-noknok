@@ -10,6 +10,7 @@ func (s *Server) registerRoutes() {
 	s.echo.POST("/logout/one", s.handleLogoutOne)
 	s.echo.GET("/api/identities", s.handleListIdentities)
 	s.echo.GET("/api/health", s.handleHealthStatus)
+	s.echo.GET("/__noknok_set", s.handleRelay)
 	s.echo.GET("/", s.handlePortal)
 
 	// OAuth endpoints.

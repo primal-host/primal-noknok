@@ -103,6 +103,18 @@ func (s *Server) handleOAuthCallback(c echo.Context) error {
 					}
 					c.SetCookie(&http.Cookie{Name: redirectCookieName, Value: "", Path: "/", MaxAge: -1})
 				}
+				// Relay to external domain if needed.
+				if destURL, parseErr := url.Parse(dest); parseErr == nil && destURL.Host != "" {
+					if s.cfg.IsExternalHost(destURL.Host) {
+						token := existing.Value
+						if switchCookie != nil {
+							token = switchCookie.Value
+						}
+						relayURL := fmt.Sprintf("%s://%s/__noknok_set?t=%s&r=%s",
+							destURL.Scheme, destURL.Host, token, url.QueryEscape(destURL.RequestURI()))
+						return c.Redirect(http.StatusFound, relayURL)
+					}
+				}
 				return c.Redirect(http.StatusFound, dest)
 			}
 		}
@@ -132,6 +144,17 @@ func (s *Server) handleOAuthCallback(c echo.Context) error {
 			MaxAge: -1,
 		})
 	}
+
+	// If the destination is on a different cookie domain, relay the session
+	// through that domain so the cookie gets set there too.
+	if destURL, err := url.Parse(dest); err == nil && destURL.Host != "" {
+		if s.cfg.IsExternalHost(destURL.Host) {
+			relayURL := fmt.Sprintf("%s://%s/__noknok_set?t=%s&r=%s",
+				destURL.Scheme, destURL.Host, cookie.Value, url.QueryEscape(destURL.RequestURI()))
+			return c.Redirect(http.StatusFound, relayURL)
+		}
+	}
+
 	return c.Redirect(http.StatusFound, dest)
 }
 
@@ -146,6 +169,7 @@ func (s *Server) handleJWKS(c echo.Context) error {
 }
 
 // isAllowedRedirect validates the redirect URL to prevent open redirect attacks.
+// Checks against all configured cookie domains.
 func isAllowedRedirect(rawURL string, cfg *config.Config) bool {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -154,12 +178,19 @@ func isAllowedRedirect(rawURL string, cfg *config.Config) bool {
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return false
 	}
-	domain := cfg.CookieDomain
-	if strings.HasPrefix(domain, ".") {
-		base := domain[1:]
-		return u.Host == base || strings.HasSuffix(u.Host, domain)
+	for _, domain := range cfg.CookieDomains {
+		if strings.HasPrefix(domain, ".") {
+			base := domain[1:]
+			if u.Host == base || strings.HasSuffix(u.Host, domain) {
+				return true
+			}
+		} else {
+			if u.Host == domain {
+				return true
+			}
+		}
 	}
-	return u.Host == domain
+	return false
 }
 
 // hasValidSession returns true if the request has a valid session cookie.

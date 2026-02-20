@@ -23,7 +23,8 @@ type Config struct {
 	SessionTTL      string // duration string, e.g. "24h"
 	OwnerDID       string
 	OwnerUsername  string
-	CookieDomain   string
+	CookieDomain   string   // primary cookie domain (first entry)
+	CookieDomains  []string // all cookie domains (parsed from COOKIE_DOMAINS)
 	PublicURL      string
 }
 
@@ -42,6 +43,21 @@ func Load() (*Config, error) {
 		OwnerUsername: envOrDefault("OWNER_USERNAME", ""),
 		CookieDomain: envOrDefault("COOKIE_DOMAIN", ".localhost"),
 		PublicURL:     envOrDefault("PUBLIC_URL", "http://noknok.localhost"),
+	}
+
+	// Parse COOKIE_DOMAINS (comma-separated). Falls back to single CookieDomain.
+	if domains := os.Getenv("COOKIE_DOMAINS"); domains != "" {
+		for _, d := range strings.Split(domains, ",") {
+			d = strings.TrimSpace(d)
+			if d != "" {
+				c.CookieDomains = append(c.CookieDomains, d)
+			}
+		}
+		if len(c.CookieDomains) > 0 {
+			c.CookieDomain = c.CookieDomains[0]
+		}
+	} else {
+		c.CookieDomains = []string{c.CookieDomain}
 	}
 
 	pw, err := envOrFile("DB_PASSWORD")
@@ -72,6 +88,29 @@ func (c *Config) DSN() string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 		url.QueryEscape(c.DBUser), url.QueryEscape(c.DBPassword),
 		c.DBHost, c.DBPort, c.DBName, c.DBSSLMode)
+}
+
+// DomainForHost returns the cookie domain that matches the given host.
+// For example, host "ker.ai" matches domain ".ker.ai", host "gitea.primal.host"
+// matches ".primal.host". Returns the primary domain if no match is found.
+func (c *Config) DomainForHost(host string) string {
+	// Strip port if present.
+	if idx := strings.LastIndex(host, ":"); idx != -1 {
+		host = host[:idx]
+	}
+	for _, d := range c.CookieDomains {
+		base := strings.TrimPrefix(d, ".")
+		if host == base || strings.HasSuffix(host, d) {
+			return d
+		}
+	}
+	return c.CookieDomain
+}
+
+// IsExternalHost returns true if the host belongs to a different cookie domain
+// than the primary PublicURL.
+func (c *Config) IsExternalHost(host string) bool {
+	return c.DomainForHost(host) != c.CookieDomain
 }
 
 func envOrDefault(key, fallback string) string {

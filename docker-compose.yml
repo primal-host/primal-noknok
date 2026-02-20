@@ -31,6 +31,10 @@ services:
       - "traefik.http.middlewares.noknok-to-root.redirectregex.regex=^https?://noknok\\.primal\\.host(.*)"
       - "traefik.http.middlewares.noknok-to-root.redirectregex.replacement=https://primal.host$${1}"
       - "traefik.http.middlewares.noknok-to-root.redirectregex.permanent=true"
+      # ker.ai session relay (HTTPS) — sets cookie on ker.ai domain after OAuth
+      - "traefik.http.routers.noknok-kerai-relay.rule=Host(`ker.ai`) && Path(`/__noknok_set`)"
+      - "traefik.http.routers.noknok-kerai-relay.entrypoints=https"
+      - "traefik.http.routers.noknok-kerai-relay.tls.certresolver=letsencrypt"
       # Local (HTTP)
       - "traefik.http.routers.noknok-local.rule=Host(`noknok.localhost`)"
       - "traefik.http.routers.noknok-local.entrypoints=http"
